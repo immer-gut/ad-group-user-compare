@@ -7,4 +7,5 @@ public sealed record LdapTestResponse(
     bool UseSsl,
     string SearchBase,
     bool BindConfigured,
+    string BindDn,
     IReadOnlyList<LdapTestStep> Steps);

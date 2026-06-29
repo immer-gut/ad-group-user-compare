@@ -254,7 +254,8 @@ function renderLdapTestResult(result) {
     ["Port", String(result.port)],
     ["SSL", result.useSsl ? "ja" : "nein"],
     ["SearchBase", result.searchBase || "nicht gesetzt"],
-    ["Bind", result.bindConfigured ? "konfiguriert" : "anonym"]
+    ["Bind", result.bindConfigured ? "konfiguriert" : "anonym"],
+    ["Bind-DN", result.bindDn || "(leer)"]
   ];
 
   elements.ldapTestConfig.replaceChildren(...configItems.map(([label, value]) => {

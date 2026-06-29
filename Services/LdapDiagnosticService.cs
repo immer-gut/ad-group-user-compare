@@ -34,7 +34,7 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
             "Konfiguration",
             true,
             "Pflichtwerte vorhanden.",
-            $"{ProtocolName()} {server}:{_options.Port}, SearchBase {searchBase}, Bind {(_options.BindDn.Length > 0 ? "konfiguriert" : "anonym")}"));
+            $"{ProtocolName()} {server}:{_options.Port}, SearchBase {searchBase}, Bind-DN {BindDnLabel()}"));
 
         LdapConnection? connection = null;
         if (!TryStep(
@@ -53,33 +53,33 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
         var activeConnection = connection ?? throw new InvalidOperationException("LDAP-Verbindung wurde nicht initialisiert.");
         using (activeConnection)
         {
-        if (!TryStep("Bind", steps, () => activeConnection.Bind(), "LDAP-Bind erfolgreich."))
-        {
-            return Task.FromResult(BuildResponse(false, server, searchBase, steps));
-        }
+            if (!TryStep("Bind", steps, () => activeConnection.Bind(), "LDAP-Bind erfolgreich."))
+            {
+                return Task.FromResult(BuildResponse(false, server, searchBase, steps));
+            }
 
-        if (!TryStep(
-            "SearchBase",
-            steps,
-            () => ProbeSearchBase(activeConnection, searchBase),
-            "SearchBase ist lesbar."))
-        {
-            return Task.FromResult(BuildResponse(false, server, searchBase, steps));
-        }
-
-        var groupPattern = request.GroupPattern?.Trim();
-        if (!string.IsNullOrWhiteSpace(groupPattern))
-        {
-            TryStep(
-                "Gruppenmuster",
+            if (!TryStep(
+                "SearchBase",
                 steps,
-                () => ProbeGroupPattern(activeConnection, searchBase, groupPattern),
-                "Gruppensuche erfolgreich.");
-        }
-        else
-        {
-            steps.Add(new LdapTestStep("Gruppenmuster", true, "Uebersprungen.", "Trage ein Gruppenmuster ein, um auch die Gruppensuche zu testen."));
-        }
+                () => ProbeSearchBase(activeConnection, searchBase),
+                "SearchBase ist lesbar."))
+            {
+                return Task.FromResult(BuildResponse(false, server, searchBase, steps));
+            }
+
+            var groupPattern = request.GroupPattern?.Trim();
+            if (!string.IsNullOrWhiteSpace(groupPattern))
+            {
+                TryStep(
+                    "Gruppenmuster",
+                    steps,
+                    () => ProbeGroupPattern(activeConnection, searchBase, groupPattern),
+                    "Gruppensuche erfolgreich.");
+            }
+            else
+            {
+                steps.Add(new LdapTestStep("Gruppenmuster", true, "Uebersprungen.", "Trage ein Gruppenmuster ein, um auch die Gruppensuche zu testen."));
+            }
         }
 
         return Task.FromResult(BuildResponse(steps.All(step => step.Success), server, searchBase, steps));
@@ -164,12 +164,18 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
             _options.UseSsl,
             searchBase,
             !string.IsNullOrWhiteSpace(_options.BindDn),
+            _options.BindDn,
             steps);
     }
 
     private string ProtocolName()
     {
         return _options.UseSsl ? "LDAPS" : "LDAP";
+    }
+
+    private string BindDnLabel()
+    {
+        return string.IsNullOrWhiteSpace(_options.BindDn) ? "(leer/anonym)" : _options.BindDn;
     }
 
     private static string FriendlyMessage(Exception ex)
