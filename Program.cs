@@ -27,6 +27,7 @@ builder.Services.PostConfigure<LdapOptions>(options =>
 
 builder.Services.AddSingleton<ResultComparisonService>();
 builder.Services.AddScoped<IAdGroupLookupService, LdapAdGroupLookupService>();
+builder.Services.AddScoped<ILdapDiagnosticService, LdapDiagnosticService>();
 
 var app = builder.Build();
 
@@ -62,6 +63,14 @@ app.MapPost("/api/search", async (
         loggerFactory.CreateLogger("Search").LogError(ex, "LDAP search failed.");
         return Results.Json(new { error = "LDAP-Suche fehlgeschlagen. Bitte Server, SearchBase und Bind-Daten pruefen." }, statusCode: StatusCodes.Status500InternalServerError);
     }
+});
+
+app.MapPost("/api/test-ldap", async (
+    [FromBody] LdapTestRequest request,
+    ILdapDiagnosticService diagnostic,
+    CancellationToken cancellationToken) =>
+{
+    return Results.Ok(await diagnostic.TestAsync(request, cancellationToken));
 });
 
 app.MapPost("/api/users", ([FromBody] IReadOnlyList<AdUserResult> results, ResultComparisonService comparison) =>

@@ -1,0 +1,226 @@
+using System.DirectoryServices.Protocols;
+using System.Net;
+using AdGroupUserCompare.Models;
+using AdGroupUserCompare.Options;
+using Microsoft.Extensions.Options;
+
+namespace AdGroupUserCompare.Services;
+
+public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdapDiagnosticService
+{
+    private readonly LdapOptions _options = options.Value;
+
+    public Task<LdapTestResponse> TestAsync(LdapTestRequest request, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var server = FirstNonEmpty(request.Server, _options.Server);
+        var searchBase = FirstNonEmpty(request.SearchBase, _options.SearchBase);
+        var steps = new List<LdapTestStep>();
+
+        if (string.IsNullOrWhiteSpace(server))
+        {
+            steps.Add(new LdapTestStep("Konfiguration", false, "LDAP-Server fehlt.", "Setze AD_LDAP_SERVER oder Ad__Server im Portainer Stack."));
+            return Task.FromResult(BuildResponse(false, server, searchBase, steps));
+        }
+
+        if (string.IsNullOrWhiteSpace(searchBase))
+        {
+            steps.Add(new LdapTestStep("Konfiguration", false, "SearchBase fehlt.", "Setze AD_SEARCH_BASE oder Ad__SearchBase, z. B. DC=example,DC=local."));
+            return Task.FromResult(BuildResponse(false, server, searchBase, steps));
+        }
+
+        steps.Add(new LdapTestStep(
+            "Konfiguration",
+            true,
+            "Pflichtwerte vorhanden.",
+            $"{ProtocolName()} {server}:{_options.Port}, SearchBase {searchBase}, Bind {(_options.BindDn.Length > 0 ? "konfiguriert" : "anonym")}"));
+
+        using var connection = CreateConnection(server);
+        if (!TryStep("Bind", steps, () => connection.Bind(), "LDAP-Bind erfolgreich."))
+        {
+            return Task.FromResult(BuildResponse(false, server, searchBase, steps));
+        }
+
+        if (!TryStep(
+            "SearchBase",
+            steps,
+            () => ProbeSearchBase(connection, searchBase),
+            "SearchBase ist lesbar."))
+        {
+            return Task.FromResult(BuildResponse(false, server, searchBase, steps));
+        }
+
+        var groupPattern = request.GroupPattern?.Trim();
+        if (!string.IsNullOrWhiteSpace(groupPattern))
+        {
+            TryStep(
+                "Gruppenmuster",
+                steps,
+                () => ProbeGroupPattern(connection, searchBase, groupPattern),
+                "Gruppensuche erfolgreich.");
+        }
+        else
+        {
+            steps.Add(new LdapTestStep("Gruppenmuster", true, "Uebersprungen.", "Trage ein Gruppenmuster ein, um auch die Gruppensuche zu testen."));
+        }
+
+        return Task.FromResult(BuildResponse(steps.All(step => step.Success), server, searchBase, steps));
+    }
+
+    private LdapConnection CreateConnection(string server)
+    {
+        var identifier = new LdapDirectoryIdentifier(server, _options.Port, fullyQualifiedDnsHostName: false, connectionless: false);
+        var connection = new LdapConnection(identifier)
+        {
+            AuthType = string.IsNullOrWhiteSpace(_options.BindDn) ? AuthType.Anonymous : AuthType.Basic,
+            Credential = string.IsNullOrWhiteSpace(_options.BindDn) ? null : new NetworkCredential(_options.BindDn, _options.BindPassword),
+            Timeout = TimeSpan.FromSeconds(20)
+        };
+
+        connection.SessionOptions.ProtocolVersion = 3;
+        connection.SessionOptions.SecureSocketLayer = _options.UseSsl;
+        return connection;
+    }
+
+    private static void ProbeSearchBase(LdapConnection connection, string searchBase)
+    {
+        var request = new SearchRequest(searchBase, "(objectClass=*)", SearchScope.Base, "distinguishedName", "name");
+        request.TimeLimit = TimeSpan.FromSeconds(15);
+        connection.SendRequest(request);
+    }
+
+    private static string ProbeGroupPattern(LdapConnection connection, string searchBase, string groupPattern)
+    {
+        var request = new SearchRequest(
+            searchBase,
+            $"(&(objectClass=group)(name={EscapeLdapFilterValue(groupPattern)}))",
+            SearchScope.Subtree,
+            "distinguishedName",
+            "name");
+        request.TimeLimit = TimeSpan.FromSeconds(20);
+        request.Controls.Add(new PageResultRequestControl(10));
+
+        var response = (SearchResponse)connection.SendRequest(request);
+        var hasMore = response.Controls.OfType<PageResultResponseControl>().Any(control => control.Cookie.Length > 0);
+        return hasMore
+            ? $"Mindestens {response.Entries.Count} Gruppe(n) in der Testabfrage gefunden."
+            : $"{response.Entries.Count} Gruppe(n) in der Testabfrage gefunden.";
+    }
+
+    private static bool TryStep(string name, List<LdapTestStep> steps, Action action, string successMessage)
+    {
+        try
+        {
+            action();
+            steps.Add(new LdapTestStep(name, true, successMessage, null));
+            return true;
+        }
+        catch (Exception ex)
+        {
+            steps.Add(new LdapTestStep(name, false, FriendlyMessage(ex), DiagnosticDetail(ex)));
+            return false;
+        }
+    }
+
+    private static bool TryStep(string name, List<LdapTestStep> steps, Func<string> action, string successMessage)
+    {
+        try
+        {
+            var detail = action();
+            steps.Add(new LdapTestStep(name, true, successMessage, detail));
+            return true;
+        }
+        catch (Exception ex)
+        {
+            steps.Add(new LdapTestStep(name, false, FriendlyMessage(ex), DiagnosticDetail(ex)));
+            return false;
+        }
+    }
+
+    private LdapTestResponse BuildResponse(bool success, string server, string searchBase, IReadOnlyList<LdapTestStep> steps)
+    {
+        return new LdapTestResponse(
+            success,
+            server,
+            _options.Port,
+            _options.UseSsl,
+            searchBase,
+            !string.IsNullOrWhiteSpace(_options.BindDn),
+            steps);
+    }
+
+    private string ProtocolName()
+    {
+        return _options.UseSsl ? "LDAPS" : "LDAP";
+    }
+
+    private static string FriendlyMessage(Exception ex)
+    {
+        return ex switch
+        {
+            LdapException ldapException => ldapException.ErrorCode switch
+            {
+                49 => "Bind fehlgeschlagen: Benutzername oder Passwort wird abgelehnt.",
+                81 => "Server nicht erreichbar oder Port/SSL passt nicht.",
+                91 => "LDAP-Verbindung konnte nicht hergestellt werden.",
+                _ => $"LDAP-Fehler {ldapException.ErrorCode}: {ldapException.Message}"
+            },
+            DirectoryOperationException directoryOperationException => $"LDAP-Operation fehlgeschlagen: {directoryOperationException.Message}",
+            _ => ex.Message
+        };
+    }
+
+    private static string DiagnosticDetail(Exception ex)
+    {
+        var parts = new List<string> { ex.GetType().Name };
+        if (ex is LdapException ldapException)
+        {
+            parts.Add($"ErrorCode={ldapException.ErrorCode}");
+            if (!string.IsNullOrWhiteSpace(ldapException.ServerErrorMessage))
+            {
+                parts.Add(ldapException.ServerErrorMessage);
+            }
+        }
+
+        if (ex.InnerException is not null)
+        {
+            parts.Add($"Inner={ex.InnerException.Message}");
+        }
+
+        return string.Join(" | ", parts);
+    }
+
+    private static string EscapeLdapFilterValue(string value)
+    {
+        var builder = new System.Text.StringBuilder(value.Length);
+        foreach (var character in value)
+        {
+            switch (character)
+            {
+                case '(':
+                    builder.Append(@"\28");
+                    break;
+                case ')':
+                    builder.Append(@"\29");
+                    break;
+                case '\\':
+                    builder.Append(@"\5c");
+                    break;
+                case '\0':
+                    builder.Append(@"\00");
+                    break;
+                default:
+                    builder.Append(character);
+                    break;
+            }
+        }
+
+        return builder.ToString();
+    }
+
+    private static string FirstNonEmpty(params string?[] values)
+    {
+        return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? "";
+    }
+}

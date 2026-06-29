@@ -35,6 +35,7 @@
           <span>Nur aktive Benutzer</span>
         </label>
         <button id="searchButton" type="submit">Suchen</button>
+        <button id="testLdapButton" type="button">LDAP testen</button>
       </form>
     </section>
 
@@ -81,6 +82,21 @@
       </table>
     </section>
   </main>
+
+  <dialog id="ldapTestDialog" class="test-dialog">
+    <form method="dialog" class="dialog-shell">
+      <header class="dialog-header">
+        <h2>LDAP-Test</h2>
+        <button id="closeLdapTestButton" class="icon-button" type="submit" aria-label="Schließen">×</button>
+      </header>
+      <div class="test-config" id="ldapTestConfig"></div>
+      <div class="test-results" id="ldapTestResults"></div>
+      <footer class="dialog-actions">
+        <button id="runLdapTestButton" type="button">Test starten</button>
+        <button type="submit">Schließen</button>
+      </footer>
+    </form>
+  </dialog>
 
   <div id="toast" role="status" aria-live="polite"></div>
   <script src="/app.js" type="module"></script>

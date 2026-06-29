@@ -33,6 +33,7 @@ const elements = {
   server: document.querySelector("#server"),
   onlyEnabled: document.querySelector("#onlyEnabled"),
   searchButton: document.querySelector("#searchButton"),
+  testLdapButton: document.querySelector("#testLdapButton"),
   summary: document.querySelector("#summary"),
   filter: document.querySelector("#filterInput"),
   table: document.querySelector("#resultsTable"),
@@ -46,7 +47,11 @@ const elements = {
   clearCompare: document.querySelector("#clearCompareButton"),
   toast: document.querySelector("#toast"),
   connectionSummary: document.querySelector("#connectionSummary"),
-  themeButton: document.querySelector("#themeButton")
+  themeButton: document.querySelector("#themeButton"),
+  ldapTestDialog: document.querySelector("#ldapTestDialog"),
+  ldapTestConfig: document.querySelector("#ldapTestConfig"),
+  ldapTestResults: document.querySelector("#ldapTestResults"),
+  runLdapTestButton: document.querySelector("#runLdapTestButton")
 };
 
 init();
@@ -61,6 +66,8 @@ function init() {
   elements.compare.addEventListener("click", compareUsers);
   elements.clearCompare.addEventListener("click", clearComparison);
   elements.themeButton.addEventListener("click", toggleTheme);
+  elements.testLdapButton.addEventListener("click", openLdapTestDialog);
+  elements.runLdapTestButton.addEventListener("click", runLdapTest);
   renderRows([]);
 }
 
@@ -174,6 +181,116 @@ async function compareUsers() {
   renderComparisonRows(state.filtered);
   setSummary(`${state.comparison.length} Vergleichszeilen`);
   updateButtons();
+}
+
+function openLdapTestDialog() {
+  renderLdapTestConfig();
+  elements.ldapTestResults.replaceChildren();
+  if (typeof elements.ldapTestDialog.showModal === "function") {
+    elements.ldapTestDialog.showModal();
+  } else {
+    elements.ldapTestDialog.setAttribute("open", "");
+  }
+}
+
+async function runLdapTest() {
+  elements.runLdapTestButton.disabled = true;
+  elements.runLdapTestButton.textContent = "Test läuft...";
+  elements.ldapTestResults.replaceChildren(renderTestPlaceholder("LDAP-Test läuft..."));
+
+  try {
+    const response = await fetch("/api/test-ldap", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        groupPattern: elements.groupPattern.value.trim(),
+        searchBase: elements.searchBase.value.trim(),
+        server: elements.server.value.trim()
+      })
+    });
+    const body = await readJsonResponse(response, "LDAP-Test fehlgeschlagen.");
+    if (!response.ok) {
+      throw new Error(body.error ?? "LDAP-Test fehlgeschlagen.");
+    }
+
+    renderLdapTestResult(body);
+  } catch (error) {
+    elements.ldapTestResults.replaceChildren(renderTestStep({
+      name: "Test",
+      success: false,
+      message: error.message,
+      detail: null
+    }));
+  } finally {
+    elements.runLdapTestButton.disabled = false;
+    elements.runLdapTestButton.textContent = "Test starten";
+  }
+}
+
+function renderLdapTestConfig() {
+  const items = [
+    ["Server", elements.server.value.trim() || "aus Stack-Konfiguration"],
+    ["Port", "aus Stack-Konfiguration"],
+    ["SSL", "aus Stack-Konfiguration"],
+    ["SearchBase", elements.searchBase.value.trim() || "aus Stack-Konfiguration"],
+    ["Gruppenmuster", elements.groupPattern.value.trim() || "nicht gesetzt"],
+    ["Bind", "aus Stack-Konfiguration"]
+  ];
+
+  elements.ldapTestConfig.replaceChildren(...items.map(([label, value]) => {
+    const item = document.createElement("div");
+    const strong = document.createElement("strong");
+    const span = document.createElement("span");
+    strong.textContent = label;
+    span.textContent = value;
+    item.append(strong, span);
+    return item;
+  }));
+}
+
+function renderLdapTestResult(result) {
+  const configItems = [
+    ["Server", result.server || "nicht gesetzt"],
+    ["Port", String(result.port)],
+    ["SSL", result.useSsl ? "ja" : "nein"],
+    ["SearchBase", result.searchBase || "nicht gesetzt"],
+    ["Bind", result.bindConfigured ? "konfiguriert" : "anonym"]
+  ];
+
+  elements.ldapTestConfig.replaceChildren(...configItems.map(([label, value]) => {
+    const item = document.createElement("div");
+    const strong = document.createElement("strong");
+    const span = document.createElement("span");
+    strong.textContent = label;
+    span.textContent = value;
+    item.append(strong, span);
+    return item;
+  }));
+
+  elements.ldapTestResults.replaceChildren(...(result.steps ?? []).map(renderTestStep));
+}
+
+function renderTestPlaceholder(message) {
+  return renderTestStep({ name: "Status", success: true, message, detail: null });
+}
+
+function renderTestStep(step) {
+  const section = document.createElement("section");
+  section.className = `test-step ${step.success ? "ok" : "fail"}`;
+  const strong = document.createElement("strong");
+  const message = document.createElement("p");
+  strong.textContent = `${step.success ? "OK" : "Fehler"} · ${step.name}`;
+  message.textContent = step.message ?? "";
+  section.append(strong, message);
+
+  if (step.detail) {
+    const detail = document.createElement("p");
+    detail.className = "detail";
+    detail.textContent = step.detail;
+    section.append(detail);
+  }
+
+  return section;
 }
 
 function clearComparison() {

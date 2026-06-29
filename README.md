@@ -14,6 +14,7 @@ Die App ist die Linux-/Docker-Portierung des WPF-Tools `ad-group-user-exporter`:
 - sichtbare `GroupName`-Werte kopieren
 - sichtbares Ergebnis als CSV exportieren
 - zwei Benutzer aus dem geladenen Ergebnis vergleichen
+- LDAP-Testdialog fuer Server, Bind, SearchBase und Gruppenmuster
 - Docker- und Portainer-Stack fuer Ubuntu/Linux
 
 ## Konfiguration
@@ -83,6 +84,7 @@ services:
 - Der Port nutzt `System.DirectoryServices.Protocols` und spricht LDAP direkt.
 - In den meisten Umgebungen ist ein eigener LDAP-Lesebenutzer sinnvoll.
 - Fuer LDAPS `AD_USE_SSL=true` und meistens `AD_LDAP_PORT=636` setzen.
+- Der Button `LDAP testen` prueft die Verbindung schrittweise und zeigt konkrete Fehler fuer Bind, SearchBase oder Gruppenmuster.
 - Der Vergleich betrachtet nur das aktuell geladene Ergebnis, nicht alle Gruppen eines Benutzers im gesamten AD.
 
 ## Entwicklung
