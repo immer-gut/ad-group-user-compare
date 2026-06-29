@@ -256,6 +256,15 @@ public sealed class LdapAdGroupLookupService(IOptions<LdapOptions> options, ILog
     private List<SearchResultEntry> ExecutePagedSearch(LdapConnection connection, SearchRequest request, CancellationToken cancellationToken)
     {
         var results = new List<SearchResultEntry>();
+
+        if (!_options.UsePaging)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var response = (SearchResponse)connection.SendRequest(request);
+            results.AddRange(response.Entries.Cast<SearchResultEntry>());
+            return results;
+        }
+
         var pageSize = Math.Max(1, _options.PageSize);
         var pageControl = new PageResultRequestControl(pageSize);
         request.Controls.Add(pageControl);

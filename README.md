@@ -30,6 +30,7 @@ Die App liest Konfiguration aus `appsettings.json`, .NET-Environment-Variablen u
 | `AD_SEARCH_BASE` oder `Ad__SearchBase` | Basis-DN fuer Gruppensuche | `OU=Groups,DC=example,DC=local` |
 | `AD_BIND_DN` oder `Ad__BindDn` | Bind-DN fuer LDAP | `CN=ldap-reader,OU=Service Accounts,DC=example,DC=local` |
 | `AD_BIND_PASSWORD` oder `Ad__BindPassword` | Passwort fuer LDAP-Bind | `change-me` |
+| `AD_USE_PAGING` oder `Ad__UsePaging` | LDAP PageResult-Control fuer Gruppensuche nutzen | `true` |
 
 ## Lokal starten
 
@@ -76,6 +77,7 @@ services:
       AD_SEARCH_BASE: "OU=Groups,DC=example,DC=local"
       AD_BIND_DN: "CN=ldap-reader,OU=Service Accounts,DC=example,DC=local"
       AD_BIND_PASSWORD: "change-me"
+      AD_USE_PAGING: "true"
 ```
 
 ## AD-/LDAP-Hinweise
@@ -85,6 +87,7 @@ services:
 - In den meisten Umgebungen ist ein eigener LDAP-Lesebenutzer sinnvoll.
 - Fuer LDAPS `AD_USE_SSL=true` und meistens `AD_LDAP_PORT=636` setzen.
 - Der Button `LDAP testen` prueft die Verbindung schrittweise und zeigt konkrete Fehler fuer Bind, SearchBase oder Gruppenmuster.
+- Wenn `Gruppenmuster ohne Paging` funktioniert, aber `Gruppenmuster mit Paging` fehlschlaegt, kann `AD_USE_PAGING=false` als Workaround gesetzt werden.
 - Der Vergleich betrachtet nur das aktuell geladene Ergebnis, nicht alle Gruppen eines Benutzers im gesamten AD.
 
 ## Entwicklung

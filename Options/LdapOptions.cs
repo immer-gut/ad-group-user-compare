@@ -14,6 +14,8 @@ public sealed class LdapOptions
 
     public string BindPassword { get; set; } = "";
 
+    public bool UsePaging { get; set; } = true;
+
     public int PageSize { get; set; } = 500;
 
     public int MemberRangeSize { get; set; } = 1500;

@@ -39,7 +39,7 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
             "Konfiguration",
             true,
             "Pflichtwerte vorhanden.",
-            $"{ProtocolName()} {server}:{_options.Port}, SearchBase {searchBase}, Bind-DN {BindDnLabel()}, Passwort {BindPasswordLabel()}"));
+            $"{ProtocolName()} {server}:{_options.Port}, SearchBase {searchBase}, Bind-DN {BindDnLabel()}, Passwort {BindPasswordLabel()}, Paging {PagingLabel()}"));
 
         LdapConnection? connection = null;
         if (!TryStep(
@@ -75,11 +75,31 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
             var groupPattern = request.GroupPattern?.Trim();
             if (!string.IsNullOrWhiteSpace(groupPattern))
             {
-                TryStep(
-                    "Gruppenmuster",
+                if (!TryStep(
+                    "Gruppenmuster ohne Paging",
                     steps,
-                    () => ProbeGroupPattern(activeConnection, searchBase, groupPattern),
-                    "Gruppensuche erfolgreich.");
+                    () => ProbeGroupPattern(activeConnection, searchBase, groupPattern, usePaging: false),
+                    "Gruppensuche ohne Paging erfolgreich."))
+                {
+                    return Task.FromResult(BuildResponse(false, server, searchBase, steps));
+                }
+
+                if (_options.UsePaging)
+                {
+                    TryStep(
+                        "Gruppenmuster mit Paging",
+                        steps,
+                        () => ProbeGroupPattern(activeConnection, searchBase, groupPattern, usePaging: true),
+                        "Gruppensuche mit Paging erfolgreich.");
+                }
+                else
+                {
+                    steps.Add(new LdapTestStep(
+                        "Gruppenmuster mit Paging",
+                        true,
+                        "Uebersprungen.",
+                        "AD_USE_PAGING=false ist gesetzt. Die App nutzt Gruppensuche ohne PageResult-Control."));
+                }
             }
             else
             {
@@ -112,7 +132,7 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
         connection.SendRequest(request);
     }
 
-    private static string ProbeGroupPattern(LdapConnection connection, string searchBase, string groupPattern)
+    private static string ProbeGroupPattern(LdapConnection connection, string searchBase, string groupPattern, bool usePaging)
     {
         var request = new SearchRequest(
             searchBase,
@@ -121,9 +141,17 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
             "distinguishedName",
             "name");
         request.TimeLimit = TimeSpan.FromSeconds(20);
-        request.Controls.Add(new PageResultRequestControl(10));
+        if (usePaging)
+        {
+            request.Controls.Add(new PageResultRequestControl(10));
+        }
 
         var response = (SearchResponse)connection.SendRequest(request);
+        if (!usePaging)
+        {
+            return $"{response.Entries.Count} Gruppe(n) in der Testabfrage gefunden.";
+        }
+
         var hasMore = response.Controls.OfType<PageResultResponseControl>().Any(control => control.Cookie.Length > 0);
         return hasMore
             ? $"Mindestens {response.Entries.Count} Gruppe(n) in der Testabfrage gefunden."
@@ -187,6 +215,11 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
     private string BindPasswordLabel()
     {
         return string.IsNullOrEmpty(_options.BindPassword) ? "(leer/nicht gesetzt)" : "gesetzt";
+    }
+
+    private string PagingLabel()
+    {
+        return _options.UsePaging ? "aktiv" : "deaktiviert";
     }
 
     private bool ValidateBindConfiguration(List<LdapTestStep> steps)

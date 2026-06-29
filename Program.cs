@@ -19,6 +19,11 @@ builder.Services.PostConfigure<LdapOptions>(options =>
         options.UseSsl = useSsl;
     }
 
+    if (bool.TryParse(Environment.GetEnvironmentVariable("AD_USE_PAGING"), out var usePaging))
+    {
+        options.UsePaging = usePaging;
+    }
+
     if (int.TryParse(Environment.GetEnvironmentVariable("AD_LDAP_PORT"), out var port))
     {
         options.Port = port;
