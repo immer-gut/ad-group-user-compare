@@ -398,7 +398,7 @@ function renderRows(rows) {
 
 function renderComparisonRows(rows) {
   setHeaders(["Status", "GroupName", "User 1", "User 2", "GroupPath User 1", "GroupPath User 2"]);
-  elements.tbody.replaceChildren(...rows.map(row => renderRow(comparisonColumns, row)));
+  elements.tbody.replaceChildren(...rows.map(renderComparisonRow));
 }
 
 function setHeaders(headers) {
@@ -420,6 +420,36 @@ function renderRow(activeColumns, row) {
     return td;
   }));
   return tr;
+}
+
+function renderComparisonRow(row) {
+  const tr = document.createElement("tr");
+  tr.replaceChildren(...comparisonColumns.map(column => {
+    const td = document.createElement("td");
+    const value = row[column];
+    td.textContent = value ?? "";
+    td.title = td.textContent;
+
+    if (column === "status") {
+      td.classList.add("comparison-status", comparisonStatusClass(value));
+    }
+
+    return td;
+  }));
+  return tr;
+}
+
+function comparisonStatusClass(status) {
+  switch (status) {
+    case "Beide":
+      return "comparison-status-both";
+    case "Nur User 1":
+      return "comparison-status-user-a";
+    case "Nur User 2":
+      return "comparison-status-user-b";
+    default:
+      return "comparison-status-neutral";
+  }
 }
 
 async function copyGroups() {

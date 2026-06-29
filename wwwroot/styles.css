@@ -231,6 +231,26 @@ tr:hover td {
   background: var(--surface-soft);
 }
 
+.comparison-status {
+  font-weight: 700;
+}
+
+.comparison-status-both {
+  color: #17824a;
+}
+
+.comparison-status-user-a {
+  color: #b76400;
+}
+
+.comparison-status-user-b {
+  color: #1d68b3;
+}
+
+.comparison-status-neutral {
+  color: var(--muted);
+}
+
 .status-error {
   color: var(--danger);
 }
