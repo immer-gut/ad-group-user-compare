@@ -78,13 +78,28 @@ public sealed class LdapAdGroupLookupService(IOptions<LdapOptions> options, ILog
         connection.SessionOptions.ProtocolVersion = 3;
         connection.SessionOptions.SecureSocketLayer = _options.UseSsl;
 
-        if (!string.IsNullOrWhiteSpace(_options.BindDn))
+        var credential = CreateCredential();
+        connection.Credential = credential;
+        BindConnection(connection, credential);
+        return connection;
+    }
+
+    private void BindConnection(LdapConnection connection, NetworkCredential? credential)
+    {
+        if (credential is null)
         {
-            connection.Credential = new NetworkCredential(_options.BindDn, _options.BindPassword);
+            connection.Bind();
+            return;
         }
 
-        connection.Bind();
-        return connection;
+        connection.Bind(credential);
+    }
+
+    private NetworkCredential? CreateCredential()
+    {
+        return string.IsNullOrWhiteSpace(_options.BindDn)
+            ? null
+            : new NetworkCredential(_options.BindDn, _options.BindPassword);
     }
 
     private void ValidateBindConfiguration()

@@ -58,7 +58,7 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
         var activeConnection = connection ?? throw new InvalidOperationException("LDAP-Verbindung wurde nicht initialisiert.");
         using (activeConnection)
         {
-            if (!TryStep("Bind", steps, () => activeConnection.Bind(), "LDAP-Bind erfolgreich."))
+            if (!TryStep("Bind", steps, () => BindConnection(activeConnection), "LDAP-Bind erfolgreich."))
             {
                 return Task.FromResult(BuildResponse(false, server, searchBase, steps));
             }
@@ -116,13 +116,33 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
         var connection = new LdapConnection(identifier)
         {
             AuthType = string.IsNullOrWhiteSpace(_options.BindDn) ? AuthType.Anonymous : AuthType.Basic,
-            Credential = string.IsNullOrWhiteSpace(_options.BindDn) ? null : new NetworkCredential(_options.BindDn, _options.BindPassword),
+            Credential = CreateCredential(),
             Timeout = TimeSpan.FromSeconds(20)
         };
 
         connection.SessionOptions.ProtocolVersion = 3;
         connection.SessionOptions.SecureSocketLayer = _options.UseSsl;
         return connection;
+    }
+
+    private string BindConnection(LdapConnection connection)
+    {
+        var credential = CreateCredential();
+        if (credential is null)
+        {
+            connection.Bind();
+            return "Anonymer LDAP-Bind wurde ausgefuehrt.";
+        }
+
+        connection.Bind(credential);
+        return $"Expliziter LDAP-Bind mit {BindDnLabel()} wurde ausgefuehrt.";
+    }
+
+    private NetworkCredential? CreateCredential()
+    {
+        return string.IsNullOrWhiteSpace(_options.BindDn)
+            ? null
+            : new NetworkCredential(_options.BindDn, _options.BindPassword);
     }
 
     private static void ProbeSearchBase(LdapConnection connection, string searchBase)
