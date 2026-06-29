@@ -1,6 +1,7 @@
 const state = {
   results: [],
   filtered: [],
+  groupNames: [],
   comparison: [],
   showingComparison: false
 };
@@ -121,6 +122,7 @@ async function search(event) {
     }
 
     state.results = body.results ?? [];
+    state.groupNames = body.groupNames ?? [];
     state.filtered = [...state.results];
     elements.filter.value = "";
     rememberGroupPattern(payload.groupPattern);
@@ -131,6 +133,7 @@ async function search(event) {
   } catch (error) {
     state.results = [];
     state.filtered = [];
+    state.groupNames = [];
     renderRows([]);
     setSummary(error.message, true);
     showToast(error.message);
@@ -506,6 +509,10 @@ function formatCsvValue(value) {
 }
 
 function visibleGroupNames() {
+  if (!state.showingComparison && elements.filter.value.trim().length === 0 && state.groupNames.length > 0) {
+    return [...state.groupNames];
+  }
+
   return [...new Set(state.filtered.map(row => row.groupName).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b));
 }
@@ -522,7 +529,8 @@ function setSummary(text, error = false) {
 function updateButtons() {
   const hasRows = state.filtered.length > 0;
   const hasResults = state.results.length > 0;
-  elements.copyGroups.disabled = !hasRows;
+  const hasGroupsToCopy = visibleGroupNames().length > 0;
+  elements.copyGroups.disabled = !hasGroupsToCopy;
   elements.export.disabled = !hasRows;
   elements.compare.disabled = !hasResults;
   elements.clearCompare.disabled = !state.showingComparison;

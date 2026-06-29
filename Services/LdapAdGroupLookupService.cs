@@ -63,7 +63,11 @@ public sealed class LdapAdGroupLookupService(IOptions<LdapOptions> options, ILog
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Count();
 
-        return Task.FromResult(new AdSearchResponse(results, groups.Count, userCount));
+        return Task.FromResult(new AdSearchResponse(
+            results,
+            groups.Select(group => group.Name).ToList(),
+            groups.Count,
+            userCount));
     }
 
     private LdapConnection CreateConnection(string server)
