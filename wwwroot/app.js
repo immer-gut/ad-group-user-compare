@@ -2,6 +2,8 @@ const state = {
   results: [],
   filtered: [],
   groupNames: [],
+  groupCount: 0,
+  userCount: 0,
   comparison: [],
   showingComparison: false
 };
@@ -123,10 +125,12 @@ async function search(event) {
 
     state.results = body.results ?? [];
     state.groupNames = body.groupNames ?? [];
+    state.groupCount = body.groupCount ?? 0;
+    state.userCount = body.userCount ?? 0;
     state.filtered = [...state.results];
     elements.filter.value = "";
     rememberGroupPattern(payload.groupPattern);
-    updateSummary(body.groupCount ?? 0, body.userCount ?? 0);
+    updateSummary();
     renderRows(state.filtered);
     await refreshUserOptions();
     updateButtons();
@@ -134,6 +138,8 @@ async function search(event) {
     state.results = [];
     state.filtered = [];
     state.groupNames = [];
+    state.groupCount = 0;
+    state.userCount = 0;
     renderRows([]);
     setSummary(error.message, true);
     showToast(error.message);
@@ -153,6 +159,7 @@ function applyFilter() {
     : [...source];
 
   renderRows(state.filtered);
+  updateFilterSummary(filter);
   updateButtons();
 }
 
@@ -251,7 +258,7 @@ async function compareUsers() {
   elements.filter.value = "";
   state.filtered = [...state.comparison];
   renderComparisonRows(state.filtered);
-  setSummary(`${state.comparison.length} Vergleichszeilen`);
+  updateFilterSummary("");
   updateButtons();
 }
 
@@ -380,7 +387,7 @@ function clearComparison() {
   elements.filter.value = "";
   state.filtered = [...state.results];
   renderRows(state.filtered);
-  setSummary(`${state.results.length} Ergebniszeilen`);
+  updateSummary();
   updateButtons();
 }
 
@@ -517,8 +524,27 @@ function visibleGroupNames() {
     .sort((a, b) => a.localeCompare(b));
 }
 
-function updateSummary(groupCount, userCount) {
-  setSummary(`${state.results.length} Zeilen · ${groupCount} Gruppen · ${userCount} Benutzer`);
+function updateSummary() {
+  setSummary(`${state.results.length} Zeilen · ${state.groupCount} Gruppen · ${state.userCount} Benutzer`);
+}
+
+function updateFilterSummary(filter) {
+  if (!filter) {
+    if (state.showingComparison) {
+      setSummary(`${state.comparison.length} Vergleichszeilen`);
+    } else {
+      updateSummary();
+    }
+    return;
+  }
+
+  if (state.showingComparison) {
+    setSummary(`${state.filtered.length} von ${state.comparison.length} Vergleichszeilen gefiltert`);
+    return;
+  }
+
+  const visibleGroupCount = visibleGroupNames().length;
+  setSummary(`${state.filtered.length} von ${state.results.length} Zeilen gefiltert · ${visibleGroupCount} Gruppen sichtbar`);
 }
 
 function setSummary(text, error = false) {
