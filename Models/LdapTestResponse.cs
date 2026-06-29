@@ -8,4 +8,5 @@ public sealed record LdapTestResponse(
     string SearchBase,
     bool BindConfigured,
     string BindDn,
+    bool BindPasswordConfigured,
     IReadOnlyList<LdapTestStep> Steps);

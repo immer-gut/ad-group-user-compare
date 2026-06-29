@@ -86,6 +86,7 @@ app.MapPost("/api/test-ldap", async (
             request.SearchBase ?? "",
             false,
             "",
+            false,
             [new LdapTestStep("Test", false, "LDAP-Test konnte nicht ausgefuehrt werden.", $"{ex.GetType().Name}: {ex.Message}")]));
     }
 });

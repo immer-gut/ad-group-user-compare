@@ -33,6 +33,8 @@ public sealed class LdapAdGroupLookupService(IOptions<LdapOptions> options, ILog
             throw new InvalidOperationException("SearchBase fehlt. Setze Ad__SearchBase oder AD_SEARCH_BASE.");
         }
 
+        ValidateBindConfiguration();
+
         using var connection = CreateConnection(server);
         var groups = FindGroups(connection, searchBase, request.GroupPattern, cancellationToken)
             .OrderBy(group => group.Name, StringComparer.CurrentCultureIgnoreCase)
@@ -83,6 +85,19 @@ public sealed class LdapAdGroupLookupService(IOptions<LdapOptions> options, ILog
 
         connection.Bind();
         return connection;
+    }
+
+    private void ValidateBindConfiguration()
+    {
+        if (!string.IsNullOrWhiteSpace(_options.BindDn) && string.IsNullOrEmpty(_options.BindPassword))
+        {
+            throw new InvalidOperationException("AD_BIND_DN ist gesetzt, aber AD_BIND_PASSWORD ist leer oder kommt nicht im Container an.");
+        }
+
+        if (string.IsNullOrWhiteSpace(_options.BindDn) && !string.IsNullOrEmpty(_options.BindPassword))
+        {
+            throw new InvalidOperationException("AD_BIND_PASSWORD ist gesetzt, aber AD_BIND_DN fehlt. Das Passwort wuerde sonst ignoriert.");
+        }
     }
 
     private List<GroupEntry> FindGroups(LdapConnection connection, string searchBase, string groupPattern, CancellationToken cancellationToken)

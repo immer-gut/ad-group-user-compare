@@ -30,11 +30,16 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
             return Task.FromResult(BuildResponse(false, server, searchBase, steps));
         }
 
+        if (!ValidateBindConfiguration(steps))
+        {
+            return Task.FromResult(BuildResponse(false, server, searchBase, steps));
+        }
+
         steps.Add(new LdapTestStep(
             "Konfiguration",
             true,
             "Pflichtwerte vorhanden.",
-            $"{ProtocolName()} {server}:{_options.Port}, SearchBase {searchBase}, Bind-DN {BindDnLabel()}"));
+            $"{ProtocolName()} {server}:{_options.Port}, SearchBase {searchBase}, Bind-DN {BindDnLabel()}, Passwort {BindPasswordLabel()}"));
 
         LdapConnection? connection = null;
         if (!TryStep(
@@ -165,6 +170,7 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
             searchBase,
             !string.IsNullOrWhiteSpace(_options.BindDn),
             _options.BindDn,
+            !string.IsNullOrEmpty(_options.BindPassword),
             steps);
     }
 
@@ -176,6 +182,36 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
     private string BindDnLabel()
     {
         return string.IsNullOrWhiteSpace(_options.BindDn) ? "(leer/anonym)" : _options.BindDn;
+    }
+
+    private string BindPasswordLabel()
+    {
+        return string.IsNullOrEmpty(_options.BindPassword) ? "(leer/nicht gesetzt)" : "gesetzt";
+    }
+
+    private bool ValidateBindConfiguration(List<LdapTestStep> steps)
+    {
+        if (!string.IsNullOrWhiteSpace(_options.BindDn) && string.IsNullOrEmpty(_options.BindPassword))
+        {
+            steps.Add(new LdapTestStep(
+                "Konfiguration",
+                false,
+                "Bind-Passwort fehlt.",
+                "AD_BIND_DN ist gesetzt, aber AD_BIND_PASSWORD ist leer oder kommt nicht im Container an."));
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(_options.BindDn) && !string.IsNullOrEmpty(_options.BindPassword))
+        {
+            steps.Add(new LdapTestStep(
+                "Konfiguration",
+                false,
+                "Bind-DN fehlt.",
+                "AD_BIND_PASSWORD ist gesetzt, aber AD_BIND_DN fehlt. Das Passwort wuerde sonst ignoriert."));
+            return false;
+        }
+
+        return true;
     }
 
     private static string FriendlyMessage(Exception ex)
