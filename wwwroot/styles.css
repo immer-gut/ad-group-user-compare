@@ -73,6 +73,18 @@ input {
   padding: 7px 10px;
 }
 
+textarea {
+  width: 100%;
+  min-height: 180px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 10px;
+  font: inherit;
+  resize: vertical;
+}
+
 label span {
   display: block;
   margin-bottom: 6px;
@@ -336,6 +348,11 @@ tr:hover td {
   margin-top: 6px;
   color: var(--muted);
   font-size: 13px;
+}
+
+.copy-text {
+  font-family: "Cascadia Mono", Consolas, monospace;
+  white-space: pre;
 }
 
 @media (max-width: 980px) {

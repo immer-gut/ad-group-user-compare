@@ -56,7 +56,9 @@ const elements = {
   ldapTestDialog: document.querySelector("#ldapTestDialog"),
   ldapTestConfig: document.querySelector("#ldapTestConfig"),
   ldapTestResults: document.querySelector("#ldapTestResults"),
-  runLdapTestButton: document.querySelector("#runLdapTestButton")
+  runLdapTestButton: document.querySelector("#runLdapTestButton"),
+  copyGroupsDialog: document.querySelector("#copyGroupsDialog"),
+  copyGroupsText: document.querySelector("#copyGroupsText")
 };
 
 init();
@@ -412,8 +414,73 @@ function renderRow(activeColumns, row) {
 
 async function copyGroups() {
   const groupNames = visibleGroupNames();
-  await navigator.clipboard.writeText(groupNames.join("\n"));
-  showToast(`${groupNames.length} Gruppen kopiert.`);
+  if (groupNames.length === 0) {
+    showToast("Keine Gruppen zum Kopieren sichtbar.");
+    return;
+  }
+
+  const text = groupNames.join("\n");
+  const copied = await copyText(text);
+  if (copied) {
+    showToast(`${groupNames.length} Gruppen kopiert.`);
+    return;
+  }
+
+  openCopyGroupsDialog(text);
+  showToast("Automatisches Kopieren blockiert. Gruppenliste wurde geöffnet.");
+}
+
+function openCopyGroupsDialog(text) {
+  elements.copyGroupsText.value = text;
+  if (typeof elements.copyGroupsDialog.showModal === "function") {
+    elements.copyGroupsDialog.showModal();
+  } else {
+    elements.copyGroupsDialog.setAttribute("open", "");
+  }
+
+  elements.copyGroupsText.focus();
+  elements.copyGroupsText.select();
+}
+
+async function copyText(text) {
+  if (copyTextWithSelection(text)) {
+    return true;
+  }
+
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Fall back for HTTP deployments where clipboard permission is unavailable.
+    }
+  }
+
+  return false;
+}
+
+function copyTextWithSelection(text) {
+  const textArea = document.createElement("textarea");
+  textArea.value = text;
+  textArea.setAttribute("readonly", "");
+  textArea.style.position = "fixed";
+  textArea.style.left = "-9999px";
+  textArea.style.top = "0";
+  document.body.append(textArea);
+  textArea.focus();
+  textArea.select();
+  textArea.setSelectionRange(0, text.length);
+
+  try {
+    if (!document.execCommand("copy")) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  } finally {
+    textArea.remove();
+  }
 }
 
 function exportCsv() {
