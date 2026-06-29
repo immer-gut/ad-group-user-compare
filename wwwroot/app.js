@@ -296,6 +296,9 @@ function renderTestStep(step) {
 }
 
 function clearComparison() {
+  elements.userA.value = "";
+  elements.userB.value = "";
+
   if (!state.showingComparison) {
     return;
   }
