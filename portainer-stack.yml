@@ -1,0 +1,15 @@
+services:
+  ad-group-user-compare:
+    image: ghcr.io/immer-gut/ad-group-user-compare:latest
+    container_name: ad-group-user-compare
+    restart: unless-stopped
+    ports:
+      - "${AD_GROUP_USER_COMPARE_PORT:-3003}:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Ad__Server: "${AD_LDAP_SERVER:-dc01.example.local}"
+      Ad__Port: "${AD_LDAP_PORT:-389}"
+      Ad__UseSsl: "${AD_USE_SSL:-false}"
+      Ad__SearchBase: "${AD_SEARCH_BASE:-OU=Groups,DC=example,DC=local}"
+      Ad__BindDn: "${AD_BIND_DN:-}"
+      Ad__BindPassword: "${AD_BIND_PASSWORD:-}"

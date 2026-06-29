@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AD Group User Compare</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <h1>AD Group User Compare</h1>
+      <p id="connectionSummary">LDAP-Konfiguration wird geladen...</p>
+    </div>
+    <button id="themeButton" class="icon-button" type="button" title="Theme umschalten" aria-label="Theme umschalten">◐</button>
+  </header>
+
+  <main>
+    <section class="query-band">
+      <form id="searchForm" class="query-grid">
+        <label>
+          <span>Gruppenmuster</span>
+          <input id="groupPattern" name="groupPattern" autocomplete="off" placeholder="abc*_1a*" required>
+        </label>
+        <label>
+          <span>SearchBase</span>
+          <input id="searchBase" name="searchBase" autocomplete="off" placeholder="OU=Groups,DC=example,DC=local">
+        </label>
+        <label>
+          <span>LDAP-Server</span>
+          <input id="server" name="server" autocomplete="off" placeholder="dc01.example.local">
+        </label>
+        <label class="check-row">
+          <input id="onlyEnabled" name="onlyEnabled" type="checkbox" checked>
+          <span>Nur aktive Benutzer</span>
+        </label>
+        <button id="searchButton" type="submit">Suchen</button>
+      </form>
+    </section>
+
+    <section class="toolbar">
+      <div class="summary" id="summary">Keine Daten geladen</div>
+      <label class="filter-box">
+        <span>Filter</span>
+        <input id="filterInput" autocomplete="off">
+      </label>
+      <button id="copyGroupsButton" type="button" disabled>Gruppen kopieren</button>
+      <button id="exportButton" type="button" disabled>CSV exportieren</button>
+    </section>
+
+    <section class="compare-panel">
+      <label>
+        <span>User 1</span>
+        <input id="userA" list="userOptions" autocomplete="off">
+      </label>
+      <label>
+        <span>User 2</span>
+        <input id="userB" list="userOptions" autocomplete="off">
+      </label>
+      <datalist id="userOptions"></datalist>
+      <button id="compareButton" type="button" disabled>User vergleichen</button>
+      <button id="clearCompareButton" type="button" disabled>Vergleich schließen</button>
+    </section>
+
+    <section class="table-wrap">
+      <table id="resultsTable">
+        <thead>
+          <tr>
+            <th>GroupName</th>
+            <th>GroupPath</th>
+            <th>SamAccountName</th>
+            <th>DisplayName</th>
+            <th>Mail</th>
+            <th>Enabled</th>
+            <th>Department</th>
+            <th>Title</th>
+            <th>DistinguishedName</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </main>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="/app.js" type="module"></script>
+</body>
+</html>
