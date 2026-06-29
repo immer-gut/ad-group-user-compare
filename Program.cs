@@ -68,9 +68,25 @@ app.MapPost("/api/search", async (
 app.MapPost("/api/test-ldap", async (
     [FromBody] LdapTestRequest request,
     ILdapDiagnosticService diagnostic,
+    ILoggerFactory loggerFactory,
     CancellationToken cancellationToken) =>
 {
-    return Results.Ok(await diagnostic.TestAsync(request, cancellationToken));
+    try
+    {
+        return Results.Ok(await diagnostic.TestAsync(request, cancellationToken));
+    }
+    catch (Exception ex)
+    {
+        loggerFactory.CreateLogger("LdapDiagnostic").LogError(ex, "LDAP diagnostic failed.");
+        return Results.Ok(new LdapTestResponse(
+            false,
+            request.Server ?? "",
+            0,
+            false,
+            request.SearchBase ?? "",
+            false,
+            [new LdapTestStep("Test", false, "LDAP-Test konnte nicht ausgefuehrt werden.", $"{ex.GetType().Name}: {ex.Message}")]));
+    }
 });
 
 app.MapPost("/api/users", ([FromBody] IReadOnlyList<AdUserResult> results, ResultComparisonService comparison) =>

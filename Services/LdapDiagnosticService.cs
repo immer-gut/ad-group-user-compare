@@ -36,8 +36,24 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
             "Pflichtwerte vorhanden.",
             $"{ProtocolName()} {server}:{_options.Port}, SearchBase {searchBase}, Bind {(_options.BindDn.Length > 0 ? "konfiguriert" : "anonym")}"));
 
-        using var connection = CreateConnection(server);
-        if (!TryStep("Bind", steps, () => connection.Bind(), "LDAP-Bind erfolgreich."))
+        LdapConnection? connection = null;
+        if (!TryStep(
+            "Verbindung",
+            steps,
+            () =>
+            {
+                connection = CreateConnection(server);
+                return "LDAP-Client wurde initialisiert.";
+            },
+            "Verbindungsaufbau vorbereitet."))
+        {
+            return Task.FromResult(BuildResponse(false, server, searchBase, steps));
+        }
+
+        var activeConnection = connection ?? throw new InvalidOperationException("LDAP-Verbindung wurde nicht initialisiert.");
+        using (activeConnection)
+        {
+        if (!TryStep("Bind", steps, () => activeConnection.Bind(), "LDAP-Bind erfolgreich."))
         {
             return Task.FromResult(BuildResponse(false, server, searchBase, steps));
         }
@@ -45,7 +61,7 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
         if (!TryStep(
             "SearchBase",
             steps,
-            () => ProbeSearchBase(connection, searchBase),
+            () => ProbeSearchBase(activeConnection, searchBase),
             "SearchBase ist lesbar."))
         {
             return Task.FromResult(BuildResponse(false, server, searchBase, steps));
@@ -57,12 +73,13 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
             TryStep(
                 "Gruppenmuster",
                 steps,
-                () => ProbeGroupPattern(connection, searchBase, groupPattern),
+                () => ProbeGroupPattern(activeConnection, searchBase, groupPattern),
                 "Gruppensuche erfolgreich.");
         }
         else
         {
             steps.Add(new LdapTestStep("Gruppenmuster", true, "Uebersprungen.", "Trage ein Gruppenmuster ein, um auch die Gruppensuche zu testen."));
+        }
         }
 
         return Task.FromResult(BuildResponse(steps.All(step => step.Success), server, searchBase, steps));
