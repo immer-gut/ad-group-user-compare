@@ -129,10 +129,14 @@ main {
 
 .query-grid {
   display: grid;
-  grid-template-columns: minmax(180px, 1.1fr) minmax(220px, 1.3fr) minmax(180px, 1fr) auto auto auto;
+  grid-template-columns: minmax(180px, 1.1fr) minmax(220px, 1.3fr) minmax(180px, 1fr) auto auto auto auto;
   gap: 12px;
   align-items: end;
   padding: 14px;
+}
+
+.query-grid datalist {
+  display: none;
 }
 
 .check-row {

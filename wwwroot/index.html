@@ -20,8 +20,9 @@
       <form id="searchForm" class="query-grid">
         <label>
           <span>Gruppenmuster</span>
-          <input id="groupPattern" name="groupPattern" autocomplete="off" placeholder="abc*_1a*" required>
+          <input id="groupPattern" name="groupPattern" list="groupPatternOptions" autocomplete="off" placeholder="abc*_1a*" required>
         </label>
+        <datalist id="groupPatternOptions"></datalist>
         <label>
           <span>SearchBase</span>
           <input id="searchBase" name="searchBase" autocomplete="off" placeholder="OU=Groups,DC=example,DC=local">
@@ -35,6 +36,7 @@
           <span>Nur aktive Benutzer</span>
         </label>
         <button id="searchButton" type="submit">Suchen</button>
+        <button id="deleteGroupPatternButton" type="button" disabled>Muster löschen</button>
         <button id="testLdapButton" type="button">LDAP testen</button>
       </form>
     </section>

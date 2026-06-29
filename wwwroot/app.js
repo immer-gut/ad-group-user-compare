@@ -26,9 +26,14 @@ const comparisonColumns = [
   "groupPathB"
 ];
 
+const recentGroupPatternsKey = "ad-group-user-compare-recent-group-patterns";
+const maxRecentGroupPatterns = 10;
+
 const elements = {
   form: document.querySelector("#searchForm"),
   groupPattern: document.querySelector("#groupPattern"),
+  groupPatternOptions: document.querySelector("#groupPatternOptions"),
+  deleteGroupPattern: document.querySelector("#deleteGroupPatternButton"),
   searchBase: document.querySelector("#searchBase"),
   server: document.querySelector("#server"),
   onlyEnabled: document.querySelector("#onlyEnabled"),
@@ -60,6 +65,8 @@ function init() {
   loadTheme();
   loadConfig();
   elements.form.addEventListener("submit", search);
+  elements.groupPattern.addEventListener("input", updateGroupPatternButton);
+  elements.deleteGroupPattern.addEventListener("click", deleteCurrentGroupPattern);
   elements.filter.addEventListener("input", applyFilter);
   elements.copyGroups.addEventListener("click", copyGroups);
   elements.export.addEventListener("click", exportCsv);
@@ -68,6 +75,8 @@ function init() {
   elements.themeButton.addEventListener("click", toggleTheme);
   elements.testLdapButton.addEventListener("click", openLdapTestDialog);
   elements.runLdapTestButton.addEventListener("click", runLdapTest);
+  renderRecentGroupPatterns();
+  updateGroupPatternButton();
   renderRows([]);
 }
 
@@ -112,6 +121,7 @@ async function search(event) {
     state.results = body.results ?? [];
     state.filtered = [...state.results];
     elements.filter.value = "";
+    rememberGroupPattern(payload.groupPattern);
     updateSummary(body.groupCount ?? 0, body.userCount ?? 0);
     renderRows(state.filtered);
     await refreshUserOptions();
@@ -139,6 +149,63 @@ function applyFilter() {
 
   renderRows(state.filtered);
   updateButtons();
+}
+
+function readRecentGroupPatterns() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(recentGroupPatternsKey) ?? "[]");
+    return Array.isArray(parsed)
+      ? parsed.filter(pattern => typeof pattern === "string" && pattern.trim().length > 0)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRecentGroupPatterns(patterns) {
+  try {
+    localStorage.setItem(recentGroupPatternsKey, JSON.stringify(patterns.slice(0, maxRecentGroupPatterns)));
+  } catch {
+    // Browser storage can be disabled; search should still work.
+  }
+}
+
+function rememberGroupPattern(pattern) {
+  const normalized = pattern.trim();
+  if (!normalized) {
+    return;
+  }
+
+  const existing = readRecentGroupPatterns()
+    .filter(item => item.toLocaleLowerCase() !== normalized.toLocaleLowerCase());
+  saveRecentGroupPatterns([normalized, ...existing]);
+  renderRecentGroupPatterns();
+  updateGroupPatternButton();
+}
+
+function renderRecentGroupPatterns() {
+  elements.groupPatternOptions.replaceChildren(...readRecentGroupPatterns().map(pattern => {
+    const option = document.createElement("option");
+    option.value = pattern;
+    return option;
+  }));
+}
+
+function deleteCurrentGroupPattern() {
+  const pattern = elements.groupPattern.value.trim();
+  const before = readRecentGroupPatterns();
+  const remaining = readRecentGroupPatterns()
+    .filter(item => item.toLocaleLowerCase() !== pattern.toLocaleLowerCase());
+
+  saveRecentGroupPatterns(remaining);
+  elements.groupPattern.value = "";
+  renderRecentGroupPatterns();
+  updateGroupPatternButton();
+  showToast(before.length === remaining.length ? "Musterfeld geleert." : `Muster "${pattern}" gelöscht.`);
+}
+
+function updateGroupPatternButton() {
+  elements.deleteGroupPattern.disabled = elements.groupPattern.value.trim().length === 0;
 }
 
 async function refreshUserOptions() {
