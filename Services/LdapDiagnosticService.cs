@@ -39,7 +39,7 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
             "Konfiguration",
             true,
             "Pflichtwerte vorhanden.",
-            $"{ProtocolName()} {server}:{_options.Port}, SearchBase {searchBase}, Bind-DN {BindDnLabel()}, Passwort {BindPasswordLabel()}, Paging {PagingLabel()}"));
+            $"{ProtocolName()} {server}:{_options.Port}, SearchBase {searchBase}, Bind-DN {BindDnLabel()}, Passwort {BindPasswordLabel()}, Paging {PagingLabel()}, Referrals aus"));
 
         LdapConnection? connection = null;
         if (!TryStep(
@@ -122,6 +122,7 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
 
         connection.SessionOptions.ProtocolVersion = 3;
         connection.SessionOptions.SecureSocketLayer = _options.UseSsl;
+        connection.SessionOptions.ReferralChasing = ReferralChasingOptions.None;
         return connection;
     }
 

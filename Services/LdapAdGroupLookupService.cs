@@ -77,6 +77,7 @@ public sealed class LdapAdGroupLookupService(IOptions<LdapOptions> options, ILog
 
         connection.SessionOptions.ProtocolVersion = 3;
         connection.SessionOptions.SecureSocketLayer = _options.UseSsl;
+        connection.SessionOptions.ReferralChasing = ReferralChasingOptions.None;
 
         var credential = CreateCredential();
         connection.Credential = credential;
