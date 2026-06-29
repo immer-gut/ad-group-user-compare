@@ -46,6 +46,7 @@ app.MapGet("/api/config", (IOptions<LdapOptions> options) =>
 app.MapPost("/api/search", async (
     [FromBody] AdSearchRequest request,
     IAdGroupLookupService lookup,
+    ILoggerFactory loggerFactory,
     CancellationToken cancellationToken) =>
 {
     try
@@ -55,6 +56,11 @@ app.MapPost("/api/search", async (
     catch (Exception ex) when (ex is InvalidOperationException or System.DirectoryServices.Protocols.DirectoryException)
     {
         return Results.BadRequest(new { error = ex.Message });
+    }
+    catch (Exception ex)
+    {
+        loggerFactory.CreateLogger("Search").LogError(ex, "LDAP search failed.");
+        return Results.Json(new { error = "LDAP-Suche fehlgeschlagen. Bitte Server, SearchBase und Bind-Daten pruefen." }, statusCode: StatusCodes.Status500InternalServerError);
     }
 });
 

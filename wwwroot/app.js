@@ -66,7 +66,7 @@ function init() {
 
 async function loadConfig() {
   const response = await fetch("/api/config");
-  const config = await response.json();
+  const config = await readJsonResponse(response, "Konfiguration konnte nicht geladen werden.");
   elements.server.value = config.server ?? "";
   elements.searchBase.value = config.searchBase ?? "";
 
@@ -97,7 +97,7 @@ async function search(event) {
       body: JSON.stringify(payload)
     });
 
-    const body = await response.json();
+    const body = await readJsonResponse(response, "LDAP-Suche fehlgeschlagen.");
     if (!response.ok) {
       throw new Error(body.error ?? "LDAP-Suche fehlgeschlagen.");
     }
@@ -140,7 +140,7 @@ async function refreshUserOptions() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(state.results)
   });
-  const users = await response.json();
+  const users = await readJsonResponse(response, "Benutzerliste konnte nicht erstellt werden.");
   elements.userOptions.replaceChildren(...users.map(user => {
     const option = document.createElement("option");
     option.value = user;
@@ -161,7 +161,7 @@ async function compareUsers() {
     body: JSON.stringify(payload)
   });
 
-  const body = await response.json();
+  const body = await readJsonResponse(response, "Vergleich fehlgeschlagen.");
   if (!response.ok) {
     showToast(body.error ?? "Vergleich fehlgeschlagen.");
     return;
@@ -282,6 +282,19 @@ function showToast(message) {
   elements.toast.classList.add("visible");
   window.clearTimeout(showToast.timeout);
   showToast.timeout = window.setTimeout(() => elements.toast.classList.remove("visible"), 3200);
+}
+
+async function readJsonResponse(response, fallbackMessage) {
+  const text = await response.text();
+  if (!text) {
+    return response.ok ? {} : { error: `${fallbackMessage} HTTP ${response.status}` };
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return response.ok ? {} : { error: `${fallbackMessage} HTTP ${response.status}: ${text.slice(0, 180)}` };
+  }
 }
 
 function loadTheme() {
