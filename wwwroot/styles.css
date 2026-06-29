@@ -231,6 +231,10 @@ tr:hover td {
   background: var(--surface-soft);
 }
 
+.comparison-row {
+  font-weight: 600;
+}
+
 .comparison-status {
   font-weight: 700;
 }
@@ -249,6 +253,10 @@ tr:hover td {
 
 .comparison-status-neutral {
   color: var(--muted);
+}
+
+.comparison-row:hover td {
+  background: var(--surface-soft);
 }
 
 .status-error {

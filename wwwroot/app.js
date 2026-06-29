@@ -24,9 +24,7 @@ const comparisonColumns = [
   "status",
   "groupName",
   "userA",
-  "userB",
-  "groupPathA",
-  "groupPathB"
+  "userB"
 ];
 
 const recentGroupPatternsKey = "ad-group-user-compare-recent-group-patterns";
@@ -397,7 +395,7 @@ function renderRows(rows) {
 }
 
 function renderComparisonRows(rows) {
-  setHeaders(["Status", "GroupName", "User 1", "User 2", "GroupPath User 1", "GroupPath User 2"]);
+  setHeaders(["Status", "GroupName", "User 1", "User 2"]);
   elements.tbody.replaceChildren(...rows.map(renderComparisonRow));
 }
 
@@ -424,6 +422,7 @@ function renderRow(activeColumns, row) {
 
 function renderComparisonRow(row) {
   const tr = document.createElement("tr");
+  tr.classList.add("comparison-row", comparisonStatusClass(row.status));
   tr.replaceChildren(...comparisonColumns.map(column => {
     const td = document.createElement("td");
     const value = row[column];
@@ -431,7 +430,7 @@ function renderComparisonRow(row) {
     td.title = td.textContent;
 
     if (column === "status") {
-      td.classList.add("comparison-status", comparisonStatusClass(value));
+      td.classList.add("comparison-status");
     }
 
     return td;
@@ -526,7 +525,7 @@ function copyTextWithSelection(text) {
 function exportCsv() {
   const activeColumns = state.showingComparison ? comparisonColumns : columns;
   const header = state.showingComparison
-    ? ["Status", "GroupName", "UserA", "UserB", "GroupPathA", "GroupPathB"]
+    ? ["Status", "GroupName", "UserA", "UserB"]
     : ["GroupName", "GroupPath", "SamAccountName", "DisplayName", "Mail", "Enabled", "Department", "Title", "DistinguishedName"];
   const rows = [header, ...state.filtered.map(row => activeColumns.map(column => row[column] ?? ""))];
   const csv = rows.map(row => row.map(formatCsvValue).join(";")).join("\r\n");
