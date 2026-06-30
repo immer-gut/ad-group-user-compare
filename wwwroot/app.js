@@ -35,6 +35,7 @@ const elements = {
   groupPattern: document.querySelector("#groupPattern"),
   groupPatternOptions: document.querySelector("#groupPatternOptions"),
   groupPatternHistory: document.querySelector("#groupPatternHistory"),
+  clearGroupPattern: document.querySelector("#clearGroupPatternButton"),
   deleteGroupPattern: document.querySelector("#deleteGroupPatternButton"),
   searchBase: document.querySelector("#searchBase"),
   server: document.querySelector("#server"),
@@ -71,6 +72,7 @@ function init() {
   elements.form.addEventListener("submit", search);
   elements.groupPattern.addEventListener("input", updateGroupPatternButton);
   elements.groupPatternHistory.addEventListener("change", selectGroupPatternHistory);
+  elements.clearGroupPattern.addEventListener("click", clearGroupPattern);
   elements.deleteGroupPattern.addEventListener("click", deleteCurrentGroupPattern);
   elements.filter.addEventListener("input", applyFilter);
   elements.copyGroups.addEventListener("click", copyGroups);
@@ -240,8 +242,17 @@ function deleteCurrentGroupPattern() {
   showToast(before.length === remaining.length ? "Musterfeld geleert." : `Muster "${pattern}" gelöscht.`);
 }
 
+function clearGroupPattern() {
+  elements.groupPattern.value = "";
+  elements.groupPatternHistory.value = "";
+  updateGroupPatternButton();
+  elements.groupPattern.focus();
+}
+
 function updateGroupPatternButton() {
-  elements.deleteGroupPattern.disabled = elements.groupPattern.value.trim().length === 0;
+  const hasPattern = elements.groupPattern.value.trim().length > 0;
+  elements.clearGroupPattern.disabled = !hasPattern;
+  elements.deleteGroupPattern.disabled = !hasPattern;
 
   if (elements.groupPatternHistory.value && elements.groupPatternHistory.value !== elements.groupPattern.value) {
     elements.groupPatternHistory.value = "";

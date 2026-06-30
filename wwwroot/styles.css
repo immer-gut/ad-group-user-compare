@@ -81,6 +81,42 @@ select {
   padding: 7px 10px;
 }
 
+.input-action {
+  position: relative;
+}
+
+.input-action input {
+  padding-right: 38px;
+}
+
+.field-clear-button {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  padding: 0;
+  transform: translateY(-50%);
+}
+
+.field-clear-button:hover:not(:disabled) {
+  background: var(--surface-soft);
+  color: var(--text);
+}
+
+.field-clear-button:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+
 textarea {
   width: 100%;
   min-height: 180px;
@@ -422,7 +458,7 @@ tr:hover td {
     grid-template-columns: 1fr 1fr;
   }
 
-  .query-grid button {
+  .query-grid > button {
     grid-column: span 2;
   }
 
@@ -443,7 +479,7 @@ tr:hover td {
     grid-template-columns: 1fr;
   }
 
-  .query-grid button {
+  .query-grid > button {
     grid-column: auto;
   }
 

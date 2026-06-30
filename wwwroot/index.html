@@ -20,7 +20,10 @@
       <form id="searchForm" class="query-grid">
         <label>
           <span>Gruppenmuster</span>
-          <input id="groupPattern" name="groupPattern" autocomplete="off" placeholder="abc*_1a*" required>
+          <div class="input-action">
+            <input id="groupPattern" name="groupPattern" autocomplete="off" placeholder="abc*_1a*" required>
+            <button id="clearGroupPatternButton" class="field-clear-button" type="button" title="Gruppenmuster leeren" aria-label="Gruppenmuster leeren" disabled>×</button>
+          </div>
         </label>
         <datalist id="groupPatternOptions"></datalist>
         <label>
