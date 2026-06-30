@@ -20,9 +20,15 @@
       <form id="searchForm" class="query-grid">
         <label>
           <span>Gruppenmuster</span>
-          <input id="groupPattern" name="groupPattern" list="groupPatternOptions" autocomplete="off" placeholder="abc*_1a*" required>
+          <input id="groupPattern" name="groupPattern" autocomplete="off" placeholder="abc*_1a*" required>
         </label>
         <datalist id="groupPatternOptions"></datalist>
+        <label>
+          <span>Vorherige Muster</span>
+          <select id="groupPatternHistory" disabled>
+            <option value="">Keine Muster gespeichert</option>
+          </select>
+        </label>
         <label>
           <span>SearchBase</span>
           <input id="searchBase" name="searchBase" autocomplete="off" placeholder="OU=Groups,DC=example,DC=local">

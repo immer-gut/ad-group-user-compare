@@ -34,6 +34,7 @@ const elements = {
   form: document.querySelector("#searchForm"),
   groupPattern: document.querySelector("#groupPattern"),
   groupPatternOptions: document.querySelector("#groupPatternOptions"),
+  groupPatternHistory: document.querySelector("#groupPatternHistory"),
   deleteGroupPattern: document.querySelector("#deleteGroupPatternButton"),
   searchBase: document.querySelector("#searchBase"),
   server: document.querySelector("#server"),
@@ -69,6 +70,7 @@ function init() {
   loadConfig();
   elements.form.addEventListener("submit", search);
   elements.groupPattern.addEventListener("input", updateGroupPatternButton);
+  elements.groupPatternHistory.addEventListener("change", selectGroupPatternHistory);
   elements.deleteGroupPattern.addEventListener("click", deleteCurrentGroupPattern);
   elements.filter.addEventListener("input", applyFilter);
   elements.copyGroups.addEventListener("click", copyGroups);
@@ -194,11 +196,35 @@ function rememberGroupPattern(pattern) {
 }
 
 function renderRecentGroupPatterns() {
-  elements.groupPatternOptions.replaceChildren(...readRecentGroupPatterns().map(pattern => {
+  const patterns = readRecentGroupPatterns();
+  elements.groupPatternOptions.replaceChildren(...patterns.map(pattern => {
     const option = document.createElement("option");
     option.value = pattern;
     return option;
   }));
+
+  const placeholder = document.createElement("option");
+  placeholder.value = "";
+  placeholder.textContent = patterns.length === 0 ? "Keine Muster gespeichert" : "Muster auswählen";
+
+  elements.groupPatternHistory.replaceChildren(placeholder, ...patterns.map(pattern => {
+    const option = document.createElement("option");
+    option.value = pattern;
+    option.textContent = pattern;
+    return option;
+  }));
+  elements.groupPatternHistory.disabled = patterns.length === 0;
+  elements.groupPatternHistory.value = "";
+}
+
+function selectGroupPatternHistory() {
+  const pattern = elements.groupPatternHistory.value;
+  if (!pattern) {
+    return;
+  }
+
+  elements.groupPattern.value = pattern;
+  updateGroupPatternButton();
 }
 
 function deleteCurrentGroupPattern() {
@@ -216,6 +242,10 @@ function deleteCurrentGroupPattern() {
 
 function updateGroupPatternButton() {
   elements.deleteGroupPattern.disabled = elements.groupPattern.value.trim().length === 0;
+
+  if (elements.groupPatternHistory.value && elements.groupPatternHistory.value !== elements.groupPattern.value) {
+    elements.groupPatternHistory.value = "";
+  }
 }
 
 async function refreshUserOptions() {
