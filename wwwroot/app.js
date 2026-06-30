@@ -44,6 +44,7 @@ const elements = {
   testLdapButton: document.querySelector("#testLdapButton"),
   summary: document.querySelector("#summary"),
   filter: document.querySelector("#filterInput"),
+  clearFilter: document.querySelector("#clearFilterButton"),
   table: document.querySelector("#resultsTable"),
   tbody: document.querySelector("#resultsTable tbody"),
   copyGroups: document.querySelector("#copyGroupsButton"),
@@ -75,6 +76,7 @@ function init() {
   elements.clearGroupPattern.addEventListener("click", clearGroupPattern);
   elements.deleteGroupPattern.addEventListener("click", deleteCurrentGroupPattern);
   elements.filter.addEventListener("input", applyFilter);
+  elements.clearFilter.addEventListener("click", clearFilter);
   elements.copyGroups.addEventListener("click", copyGroups);
   elements.export.addEventListener("click", exportCsv);
   elements.compare.addEventListener("click", compareUsers);
@@ -84,6 +86,7 @@ function init() {
   elements.runLdapTestButton.addEventListener("click", runLdapTest);
   renderRecentGroupPatterns();
   updateGroupPatternButton();
+  updateFilterClearButton();
   renderRows([]);
 }
 
@@ -131,6 +134,7 @@ async function search(event) {
     state.userCount = body.userCount ?? 0;
     state.filtered = [...state.results];
     elements.filter.value = "";
+    updateFilterClearButton();
     rememberGroupPattern(payload.groupPattern);
     updateSummary();
     renderRows(state.filtered);
@@ -142,6 +146,8 @@ async function search(event) {
     state.groupNames = [];
     state.groupCount = 0;
     state.userCount = 0;
+    elements.filter.value = "";
+    updateFilterClearButton();
     renderRows([]);
     setSummary(error.message, true);
     showToast(error.message);
@@ -162,7 +168,18 @@ function applyFilter() {
 
   renderRows(state.filtered);
   updateFilterSummary(filter);
+  updateFilterClearButton();
   updateButtons();
+}
+
+function clearFilter() {
+  elements.filter.value = "";
+  applyFilter();
+  elements.filter.focus();
+}
+
+function updateFilterClearButton() {
+  elements.clearFilter.disabled = elements.filter.value.trim().length === 0;
 }
 
 function readRecentGroupPatterns() {
@@ -295,6 +312,7 @@ async function compareUsers() {
   state.comparison = body;
   state.showingComparison = true;
   elements.filter.value = "";
+  updateFilterClearButton();
   state.filtered = [...state.comparison];
   renderComparisonRows(state.filtered);
   updateFilterSummary("");
@@ -424,6 +442,7 @@ function clearComparison() {
   state.showingComparison = false;
   state.comparison = [];
   elements.filter.value = "";
+  updateFilterClearButton();
   state.filtered = [...state.results];
   renderRows(state.filtered);
   updateSummary();

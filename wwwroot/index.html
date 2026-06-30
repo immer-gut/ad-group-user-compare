@@ -54,7 +54,10 @@
       <div class="summary" id="summary">Keine Daten geladen</div>
       <label class="filter-box">
         <span>Filter</span>
-        <input id="filterInput" autocomplete="off">
+        <div class="input-action">
+          <input id="filterInput" autocomplete="off">
+          <button id="clearFilterButton" class="field-clear-button" type="button" title="Filter leeren" aria-label="Filter leeren" disabled>×</button>
+        </div>
       </label>
       <button id="copyGroupsButton" type="button" disabled>Gruppen kopieren</button>
       <button id="exportButton" type="button" disabled>CSV exportieren</button>
