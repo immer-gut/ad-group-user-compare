@@ -9,6 +9,9 @@
   --accent: #147a7e;
   --accent-strong: #0f6266;
   --danger: #a33b3b;
+  --user-a: #b76400;
+  --user-b: #1d68b3;
+  --both-users: #17824a;
   --shadow: 0 8px 24px rgba(31, 45, 61, 0.09);
 }
 
@@ -23,6 +26,9 @@
   --accent: #61c6bd;
   --accent-strong: #8fd9d3;
   --danger: #ff9b91;
+  --user-a: #ffb04f;
+  --user-b: #79baff;
+  --both-users: #57d68b;
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.24);
 }
 
@@ -194,6 +200,30 @@ main {
   flex: 1 1 220px;
 }
 
+.compare-panel .user-field span {
+  font-weight: 700;
+}
+
+.compare-panel .user-field input {
+  border-width: 2px;
+}
+
+.compare-panel .user-field-a span {
+  color: var(--user-a);
+}
+
+.compare-panel .user-field-a input {
+  border-color: var(--user-a);
+}
+
+.compare-panel .user-field-b span {
+  color: var(--user-b);
+}
+
+.compare-panel .user-field-b input {
+  border-color: var(--user-b);
+}
+
 .table-wrap {
   overflow: auto;
   max-height: calc(100vh - 310px);
@@ -242,15 +272,17 @@ tr:hover td {
 }
 
 .comparison-status-both {
-  color: #17824a;
+  color: var(--both-users);
 }
 
-.comparison-status-user-a {
-  color: #b76400;
+.comparison-status-user-a,
+.comparison-header-user-a {
+  color: var(--user-a);
 }
 
-.comparison-status-user-b {
-  color: #1d68b3;
+.comparison-status-user-b,
+.comparison-header-user-b {
+  color: var(--user-b);
 }
 
 .comparison-status-neutral {

@@ -426,6 +426,7 @@ function renderRows(rows) {
 
 function renderComparisonRows(rows) {
   setHeaders(["Status", "GroupName", "User 1", "User 2"]);
+  colorComparisonHeaders();
   elements.tbody.replaceChildren(...rows.map(renderComparisonRow));
 }
 
@@ -436,6 +437,13 @@ function setHeaders(headers) {
     th.textContent = header;
     return th;
   }));
+}
+
+function colorComparisonHeaders() {
+  elements.table.querySelectorAll("thead th").forEach(th => {
+    th.classList.toggle("comparison-header-user-a", th.textContent === "User 1");
+    th.classList.toggle("comparison-header-user-b", th.textContent === "User 2");
+  });
 }
 
 function renderRow(activeColumns, row) {
