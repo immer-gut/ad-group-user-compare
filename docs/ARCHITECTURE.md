@@ -12,7 +12,7 @@ ASP.NET Core Minimal API
 LdapAdGroupLookupService
   |
   v
-Active Directory via LDAP/LDAPS
+Active Directory via LDAPS or LDAP+StartTLS
 ```
 
 ## Komponenten
@@ -20,7 +20,7 @@ Active Directory via LDAP/LDAPS
 - `Program.cs`: API-Endpunkte, Konfiguration und Static-File-Hosting.
 - `wwwroot/`: Browseroberflaeche, Filter, CSV-Export und Uservergleich-Interaktion.
 - `Models/`: DTOs fuer Suche, Ergebnisse und Vergleich.
-- `Services/LdapAdGroupLookupService.cs`: LDAP-Suche, Gruppenauflistung, rekursive Member-Aufloesung und User-Attribut-Mapping.
+- `Services/LdapAdGroupLookupService.cs`: LDAP-Suche, TLS/LDAPS-Verbindungsaufbau, Gruppenauflistung, rekursive Member-Aufloesung und User-Attribut-Mapping.
 - `Services/ResultComparisonService.cs`: Vergleich zweier Benutzer innerhalb des geladenen Ergebnisses.
 
 ## LDAP-Ablauf
@@ -30,6 +30,8 @@ Active Directory via LDAP/LDAPS
 3. Verschachtelte Gruppen werden mit `visitedGroups` gegen Zyklen geschuetzt.
 4. Benutzerattribute werden per Base-Search gelesen.
 5. `userAccountControl` bestimmt, ob ein Benutzer aktiv ist.
+
+Der Bind nutzt fuer gehaertete Domain Controller standardmaessig LDAPS. Alternativ kann StartTLS auf Port 389 aktiviert werden.
 
 ## Deployment
 

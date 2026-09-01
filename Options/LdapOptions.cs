@@ -8,6 +8,8 @@ public sealed class LdapOptions
 
     public bool UseSsl { get; set; }
 
+    public bool UseStartTls { get; set; }
+
     public string SearchBase { get; set; } = "";
 
     public string BindDn { get; set; } = "";

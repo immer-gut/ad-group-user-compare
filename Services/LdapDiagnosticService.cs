@@ -35,6 +35,11 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
             return Task.FromResult(BuildResponse(false, server, searchBase, steps));
         }
 
+        if (!ValidateTransportConfiguration(steps))
+        {
+            return Task.FromResult(BuildResponse(false, server, searchBase, steps));
+        }
+
         steps.Add(new LdapTestStep(
             "Konfiguration",
             true,
@@ -58,6 +63,12 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
         var activeConnection = connection ?? throw new InvalidOperationException("LDAP-Verbindung wurde nicht initialisiert.");
         using (activeConnection)
         {
+            if (_options.UseStartTls &&
+                !TryStep("StartTLS", steps, () => StartTransportLayerSecurity(activeConnection), "StartTLS erfolgreich."))
+            {
+                return Task.FromResult(BuildResponse(false, server, searchBase, steps));
+            }
+
             if (!TryStep("Bind", steps, () => BindConnection(activeConnection), "LDAP-Bind erfolgreich."))
             {
                 return Task.FromResult(BuildResponse(false, server, searchBase, steps));
@@ -124,6 +135,11 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
         connection.SessionOptions.SecureSocketLayer = _options.UseSsl;
         connection.SessionOptions.ReferralChasing = ReferralChasingOptions.None;
         return connection;
+    }
+
+    private void StartTransportLayerSecurity(LdapConnection connection)
+    {
+        connection.SessionOptions.StartTransportLayerSecurity(new DirectoryControlCollection());
     }
 
     private string BindConnection(LdapConnection connection)
@@ -216,6 +232,7 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
             server,
             _options.Port,
             _options.UseSsl,
+            _options.UseStartTls,
             searchBase,
             !string.IsNullOrWhiteSpace(_options.BindDn),
             _options.BindDn,
@@ -225,7 +242,12 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
 
     private string ProtocolName()
     {
-        return _options.UseSsl ? "LDAPS" : "LDAP";
+        if (_options.UseSsl)
+        {
+            return "LDAPS";
+        }
+
+        return _options.UseStartTls ? "LDAP+StartTLS" : "LDAP";
     }
 
     private string BindDnLabel()
@@ -268,40 +290,29 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
         return true;
     }
 
+    private bool ValidateTransportConfiguration(List<LdapTestStep> steps)
+    {
+        if (_options.UseSsl && _options.UseStartTls)
+        {
+            steps.Add(new LdapTestStep(
+                "Konfiguration",
+                false,
+                "TLS-Konfiguration widerspruechlich.",
+                "AD_USE_SSL und AD_USE_START_TLS duerfen nicht gleichzeitig aktiv sein. Nutze entweder LDAPS auf Port 636 oder StartTLS auf Port 389."));
+            return false;
+        }
+
+        return true;
+    }
+
     private static string FriendlyMessage(Exception ex)
     {
-        return ex switch
-        {
-            LdapException ldapException => ldapException.ErrorCode switch
-            {
-                49 => "Bind fehlgeschlagen: Benutzername oder Passwort wird abgelehnt.",
-                81 => "Server nicht erreichbar oder Port/SSL passt nicht.",
-                91 => "LDAP-Verbindung konnte nicht hergestellt werden.",
-                _ => $"LDAP-Fehler {ldapException.ErrorCode}: {ldapException.Message}"
-            },
-            DirectoryOperationException directoryOperationException => $"LDAP-Operation fehlgeschlagen: {directoryOperationException.Message}",
-            _ => ex.Message
-        };
+        return LdapExceptionFormatter.FriendlyMessage(ex);
     }
 
     private static string DiagnosticDetail(Exception ex)
     {
-        var parts = new List<string> { ex.GetType().Name };
-        if (ex is LdapException ldapException)
-        {
-            parts.Add($"ErrorCode={ldapException.ErrorCode}");
-            if (!string.IsNullOrWhiteSpace(ldapException.ServerErrorMessage))
-            {
-                parts.Add(ldapException.ServerErrorMessage);
-            }
-        }
-
-        if (ex.InnerException is not null)
-        {
-            parts.Add($"Inner={ex.InnerException.Message}");
-        }
-
-        return string.Join(" | ", parts);
+        return LdapExceptionFormatter.DiagnosticDetail(ex);
     }
 
     private static string EscapeLdapFilterValue(string value)

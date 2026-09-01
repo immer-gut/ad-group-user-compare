@@ -19,6 +19,11 @@ builder.Services.PostConfigure<LdapOptions>(options =>
         options.UseSsl = useSsl;
     }
 
+    if (bool.TryParse(Environment.GetEnvironmentVariable("AD_USE_START_TLS"), out var useStartTls))
+    {
+        options.UseStartTls = useStartTls;
+    }
+
     if (bool.TryParse(Environment.GetEnvironmentVariable("AD_USE_PAGING"), out var usePaging))
     {
         options.UsePaging = usePaging;
@@ -46,6 +51,7 @@ app.MapGet("/api/config", (IOptions<LdapOptions> options) =>
         value.Server,
         value.SearchBase,
         value.UseSsl,
+        value.UseStartTls,
         !string.IsNullOrWhiteSpace(value.BindDn));
 });
 
@@ -61,7 +67,7 @@ app.MapPost("/api/search", async (
     }
     catch (Exception ex) when (ex is InvalidOperationException or System.DirectoryServices.Protocols.DirectoryException)
     {
-        return Results.BadRequest(new { error = ex.Message });
+        return Results.BadRequest(new { error = ex is InvalidOperationException ? ex.Message : LdapExceptionFormatter.FriendlyMessage(ex) });
     }
     catch (Exception ex)
     {
@@ -87,6 +93,7 @@ app.MapPost("/api/test-ldap", async (
             false,
             request.Server ?? "",
             0,
+            false,
             false,
             request.SearchBase ?? "",
             false,

@@ -15,7 +15,8 @@ AD Group User Compare ist eine Docker-faehige Web-App fuer Ubuntu/Portainer. Sie
 ## Grenzen
 
 - Es ist kein vollstaendiges AD-Reporting-System.
-- Kerberos/Integrated Windows Auth ist im Linux-Container nicht das Standardmodell; empfohlen ist LDAP Simple Bind ueber einen Lesebenutzer, idealerweise via LDAPS.
+- Kerberos/Integrated Windows Auth ist im Linux-Container nicht das Standardmodell; empfohlen ist LDAP Simple Bind ueber einen Lesebenutzer via LDAPS oder StartTLS.
+- Windows Server 2025 bzw. gehaertete Domain Controller koennen Simple Bind ohne TLS mit `Strong authentication is required` ablehnen.
 - Der Vergleich betrachtet nur die aktuell geladene Ergebnismenge.
 - Reale AD-Performance haengt von Gruppenverschachtelung, LDAP-Indexen, Netzwerk und Berechtigungen ab.
 

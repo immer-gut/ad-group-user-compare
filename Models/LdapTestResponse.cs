@@ -5,6 +5,7 @@ public sealed record LdapTestResponse(
     string Server,
     int Port,
     bool UseSsl,
+    bool UseStartTls,
     string SearchBase,
     bool BindConfigured,
     string BindDn,

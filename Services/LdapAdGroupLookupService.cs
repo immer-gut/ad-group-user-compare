@@ -34,6 +34,7 @@ public sealed class LdapAdGroupLookupService(IOptions<LdapOptions> options, ILog
         }
 
         ValidateBindConfiguration();
+        ValidateTransportConfiguration();
 
         using var connection = CreateConnection(server);
         var groups = FindGroups(connection, searchBase, request.GroupPattern, cancellationToken)
@@ -82,6 +83,7 @@ public sealed class LdapAdGroupLookupService(IOptions<LdapOptions> options, ILog
         connection.SessionOptions.ProtocolVersion = 3;
         connection.SessionOptions.SecureSocketLayer = _options.UseSsl;
         connection.SessionOptions.ReferralChasing = ReferralChasingOptions.None;
+        StartTransportLayerSecurity(connection);
 
         var credential = CreateCredential();
         connection.Credential = credential;
@@ -107,6 +109,14 @@ public sealed class LdapAdGroupLookupService(IOptions<LdapOptions> options, ILog
             : new NetworkCredential(_options.BindDn, _options.BindPassword);
     }
 
+    private void StartTransportLayerSecurity(LdapConnection connection)
+    {
+        if (_options.UseStartTls)
+        {
+            connection.SessionOptions.StartTransportLayerSecurity(new DirectoryControlCollection());
+        }
+    }
+
     private void ValidateBindConfiguration()
     {
         if (!string.IsNullOrWhiteSpace(_options.BindDn) && string.IsNullOrEmpty(_options.BindPassword))
@@ -117,6 +127,14 @@ public sealed class LdapAdGroupLookupService(IOptions<LdapOptions> options, ILog
         if (string.IsNullOrWhiteSpace(_options.BindDn) && !string.IsNullOrEmpty(_options.BindPassword))
         {
             throw new InvalidOperationException("AD_BIND_PASSWORD ist gesetzt, aber AD_BIND_DN fehlt. Das Passwort wuerde sonst ignoriert.");
+        }
+    }
+
+    private void ValidateTransportConfiguration()
+    {
+        if (_options.UseSsl && _options.UseStartTls)
+        {
+            throw new InvalidOperationException("AD_USE_SSL und AD_USE_START_TLS duerfen nicht gleichzeitig aktiv sein. Nutze entweder LDAPS auf Port 636 oder StartTLS auf Port 389.");
         }
     }
 

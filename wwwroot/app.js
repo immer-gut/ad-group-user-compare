@@ -98,7 +98,7 @@ async function loadConfig() {
 
   const server = config.server || "kein Server gesetzt";
   const searchBase = config.searchBase || "keine SearchBase gesetzt";
-  const ssl = config.useSsl ? "LDAPS" : "LDAP";
+  const ssl = config.useSsl ? "LDAPS" : (config.useStartTls ? "LDAP+StartTLS" : "LDAP");
   const bind = config.bindConfigured ? "Bind konfiguriert" : "kein Bind-DN";
   elements.connectionSummary.textContent = `${ssl} · ${server} · ${searchBase} · ${bind}`;
 }
@@ -368,6 +368,7 @@ function renderLdapTestConfig() {
     ["Server", elements.server.value.trim() || "aus Stack-Konfiguration"],
     ["Port", "aus Stack-Konfiguration"],
     ["SSL", "aus Stack-Konfiguration"],
+    ["StartTLS", "aus Stack-Konfiguration"],
     ["SearchBase", elements.searchBase.value.trim() || "aus Stack-Konfiguration"],
     ["Gruppenmuster", elements.groupPattern.value.trim() || "nicht gesetzt"],
     ["Bind", "aus Stack-Konfiguration"]
@@ -389,6 +390,7 @@ function renderLdapTestResult(result) {
     ["Server", result.server || "nicht gesetzt"],
     ["Port", String(result.port)],
     ["SSL", result.useSsl ? "ja" : "nein"],
+    ["StartTLS", result.useStartTls ? "ja" : "nein"],
     ["SearchBase", result.searchBase || "nicht gesetzt"],
     ["Bind", result.bindConfigured ? "konfiguriert" : "anonym"],
     ["Bind-DN", result.bindDn || "(leer)"],
