@@ -2,49 +2,50 @@ using System.DirectoryServices.Protocols;
 using System.Net;
 using AdGroupUserCompare.Models;
 using AdGroupUserCompare.Options;
-using Microsoft.Extensions.Options;
 
 namespace AdGroupUserCompare.Services;
 
-public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdapDiagnosticService
+public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDiagnosticService
 {
-    private readonly LdapOptions _options = options.Value;
+    private readonly LdapOptions _options = settings.Current;
 
     public Task<LdapTestResponse> TestAsync(LdapTestRequest request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var server = FirstNonEmpty(request.Server, _options.Server);
-        var searchBase = FirstNonEmpty(request.SearchBase, _options.SearchBase);
+        var options = BuildTestOptions(request);
+        var server = FirstNonEmpty(options.Server);
+        var searchBase = FirstNonEmpty(options.SearchBase);
+        var groupPattern = FirstNonEmpty(request.GroupPattern, options.DefaultGroupPattern);
         var steps = new List<LdapTestStep>();
 
         if (string.IsNullOrWhiteSpace(server))
         {
             steps.Add(new LdapTestStep("Konfiguration", false, "LDAP-Server fehlt.", "Setze AD_LDAP_SERVER oder Ad__Server im Portainer Stack."));
-            return Task.FromResult(BuildResponse(false, server, searchBase, steps));
+            return Task.FromResult(BuildResponse(false, options, server, searchBase, steps));
         }
 
         if (string.IsNullOrWhiteSpace(searchBase))
         {
             steps.Add(new LdapTestStep("Konfiguration", false, "SearchBase fehlt.", "Setze AD_SEARCH_BASE oder Ad__SearchBase, z. B. DC=example,DC=local."));
-            return Task.FromResult(BuildResponse(false, server, searchBase, steps));
+            return Task.FromResult(BuildResponse(false, options, server, searchBase, steps));
         }
 
-        if (!ValidateBindConfiguration(steps))
+        if (!ValidateBindConfiguration(options, steps))
         {
-            return Task.FromResult(BuildResponse(false, server, searchBase, steps));
+            return Task.FromResult(BuildResponse(false, options, server, searchBase, steps));
         }
 
-        if (!ValidateTransportConfiguration(steps))
+        if (!ValidateTransportConfiguration(options, steps))
         {
-            return Task.FromResult(BuildResponse(false, server, searchBase, steps));
+            return Task.FromResult(BuildResponse(false, options, server, searchBase, steps));
         }
 
         steps.Add(new LdapTestStep(
             "Konfiguration",
             true,
             "Pflichtwerte vorhanden.",
-            $"{ProtocolName()} {server}:{_options.Port}, SearchBase {searchBase}, Bind-DN {BindDnLabel()}, Passwort {BindPasswordLabel()}, Paging {PagingLabel()}, Referrals aus"));
+            $"{ProtocolName(options)} {server}:{options.Port}, SearchBase {searchBase}, Bind-DN {BindDnLabel(options)}, Passwort {BindPasswordLabel(options)}, Paging {PagingLabel(options)}, Referrals aus"));
 
         LdapConnection? connection = null;
         if (!TryStep(
@@ -52,26 +53,26 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
             steps,
             () =>
             {
-                connection = CreateConnection(server);
+                connection = CreateConnection(server, options);
                 return "LDAP-Client wurde initialisiert.";
             },
             "Verbindungsaufbau vorbereitet."))
         {
-            return Task.FromResult(BuildResponse(false, server, searchBase, steps));
+            return Task.FromResult(BuildResponse(false, options, server, searchBase, steps));
         }
 
         var activeConnection = connection ?? throw new InvalidOperationException("LDAP-Verbindung wurde nicht initialisiert.");
         using (activeConnection)
         {
-            if (_options.UseStartTls &&
+            if (options.UseStartTls &&
                 !TryStep("StartTLS", steps, () => StartTransportLayerSecurity(activeConnection), "StartTLS erfolgreich."))
             {
-                return Task.FromResult(BuildResponse(false, server, searchBase, steps));
+                return Task.FromResult(BuildResponse(false, options, server, searchBase, steps));
             }
 
-            if (!TryStep("Bind", steps, () => BindConnection(activeConnection), "LDAP-Bind erfolgreich."))
+            if (!TryStep("Bind", steps, () => BindConnection(activeConnection, options), "LDAP-Bind erfolgreich."))
             {
-                return Task.FromResult(BuildResponse(false, server, searchBase, steps));
+                return Task.FromResult(BuildResponse(false, options, server, searchBase, steps));
             }
 
             if (!TryStep(
@@ -80,10 +81,9 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
                 () => ProbeSearchBase(activeConnection, searchBase),
                 "SearchBase ist lesbar."))
             {
-                return Task.FromResult(BuildResponse(false, server, searchBase, steps));
+                return Task.FromResult(BuildResponse(false, options, server, searchBase, steps));
             }
 
-            var groupPattern = request.GroupPattern?.Trim();
             if (!string.IsNullOrWhiteSpace(groupPattern))
             {
                 if (!TryStep(
@@ -92,10 +92,10 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
                     () => ProbeGroupPattern(activeConnection, searchBase, groupPattern, usePaging: false),
                     "Gruppensuche ohne Paging erfolgreich."))
                 {
-                    return Task.FromResult(BuildResponse(false, server, searchBase, steps));
+                    return Task.FromResult(BuildResponse(false, options, server, searchBase, steps));
                 }
 
-                if (_options.UsePaging)
+                if (options.UsePaging)
                 {
                     TryStep(
                         "Gruppenmuster mit Paging",
@@ -109,7 +109,7 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
                         "Gruppenmuster mit Paging",
                         true,
                         "Uebersprungen.",
-                        "AD_USE_PAGING=false ist gesetzt. Die App nutzt Gruppensuche ohne PageResult-Control."));
+                        "Paging ist deaktiviert. Die App nutzt Gruppensuche ohne PageResult-Control."));
                 }
             }
             else
@@ -118,21 +118,21 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
             }
         }
 
-        return Task.FromResult(BuildResponse(steps.All(step => step.Success), server, searchBase, steps));
+        return Task.FromResult(BuildResponse(steps.All(step => step.Success), options, server, searchBase, steps));
     }
 
-    private LdapConnection CreateConnection(string server)
+    private LdapConnection CreateConnection(string server, LdapOptions options)
     {
-        var identifier = new LdapDirectoryIdentifier(server, _options.Port, fullyQualifiedDnsHostName: false, connectionless: false);
+        var identifier = new LdapDirectoryIdentifier(server, options.Port, fullyQualifiedDnsHostName: false, connectionless: false);
         var connection = new LdapConnection(identifier)
         {
-            AuthType = string.IsNullOrWhiteSpace(_options.BindDn) ? AuthType.Anonymous : AuthType.Basic,
-            Credential = CreateCredential(),
+            AuthType = string.IsNullOrWhiteSpace(options.BindDn) ? AuthType.Anonymous : AuthType.Basic,
+            Credential = CreateCredential(options),
             Timeout = TimeSpan.FromSeconds(20)
         };
 
         connection.SessionOptions.ProtocolVersion = 3;
-        connection.SessionOptions.SecureSocketLayer = _options.UseSsl;
+        connection.SessionOptions.SecureSocketLayer = options.UseSsl;
         connection.SessionOptions.ReferralChasing = ReferralChasingOptions.None;
         return connection;
     }
@@ -142,9 +142,9 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
         connection.SessionOptions.StartTransportLayerSecurity(new DirectoryControlCollection());
     }
 
-    private string BindConnection(LdapConnection connection)
+    private string BindConnection(LdapConnection connection, LdapOptions options)
     {
-        var credential = CreateCredential();
+        var credential = CreateCredential(options);
         if (credential is null)
         {
             connection.Bind();
@@ -152,14 +152,14 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
         }
 
         connection.Bind(credential);
-        return $"Expliziter LDAP-Bind mit {BindDnLabel()} wurde ausgefuehrt.";
+        return $"Expliziter LDAP-Bind mit {BindDnLabel(options)} wurde ausgefuehrt.";
     }
 
-    private NetworkCredential? CreateCredential()
+    private NetworkCredential? CreateCredential(LdapOptions options)
     {
-        return string.IsNullOrWhiteSpace(_options.BindDn)
+        return string.IsNullOrWhiteSpace(options.BindDn)
             ? null
-            : new NetworkCredential(_options.BindDn, _options.BindPassword);
+            : new NetworkCredential(options.BindDn, options.BindPassword);
     }
 
     private static void ProbeSearchBase(LdapConnection connection, string searchBase)
@@ -225,49 +225,50 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
         }
     }
 
-    private LdapTestResponse BuildResponse(bool success, string server, string searchBase, IReadOnlyList<LdapTestStep> steps)
+    private static LdapTestResponse BuildResponse(bool success, LdapOptions options, string server, string searchBase, IReadOnlyList<LdapTestStep> steps)
     {
         return new LdapTestResponse(
             success,
             server,
-            _options.Port,
-            _options.UseSsl,
-            _options.UseStartTls,
+            options.Port,
+            options.UseSsl,
+            options.UseStartTls,
             searchBase,
-            !string.IsNullOrWhiteSpace(_options.BindDn),
-            _options.BindDn,
-            !string.IsNullOrEmpty(_options.BindPassword),
+            !string.IsNullOrWhiteSpace(options.BindDn),
+            options.BindDn,
+            !string.IsNullOrEmpty(options.BindPassword),
+            options.UsePaging,
             steps);
     }
 
-    private string ProtocolName()
+    private string ProtocolName(LdapOptions options)
     {
-        if (_options.UseSsl)
+        if (options.UseSsl)
         {
             return "LDAPS";
         }
 
-        return _options.UseStartTls ? "LDAP+StartTLS" : "LDAP";
+        return options.UseStartTls ? "LDAP+StartTLS" : "LDAP";
     }
 
-    private string BindDnLabel()
+    private string BindDnLabel(LdapOptions options)
     {
-        return string.IsNullOrWhiteSpace(_options.BindDn) ? "(leer/anonym)" : _options.BindDn;
+        return string.IsNullOrWhiteSpace(options.BindDn) ? "(leer/anonym)" : options.BindDn;
     }
 
-    private string BindPasswordLabel()
+    private string BindPasswordLabel(LdapOptions options)
     {
-        return string.IsNullOrEmpty(_options.BindPassword) ? "(leer/nicht gesetzt)" : "gesetzt";
+        return string.IsNullOrEmpty(options.BindPassword) ? "(leer/nicht gesetzt)" : "gesetzt";
     }
 
-    private string PagingLabel()
+    private string PagingLabel(LdapOptions options)
     {
-        return _options.UsePaging ? "aktiv" : "deaktiviert";
+        return options.UsePaging ? "aktiv" : "deaktiviert";
     }
 
-    private bool ValidateBindConfiguration(List<LdapTestStep> steps)
+    private static bool ValidateBindConfiguration(LdapOptions options, List<LdapTestStep> steps)
     {
-        if (!string.IsNullOrWhiteSpace(_options.BindDn) && string.IsNullOrEmpty(_options.BindPassword))
+        if (!string.IsNullOrWhiteSpace(options.BindDn) && string.IsNullOrEmpty(options.BindPassword))
         {
             steps.Add(new LdapTestStep(
                 "Konfiguration",
@@ -277,7 +278,7 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(_options.BindDn) && !string.IsNullOrEmpty(_options.BindPassword))
+        if (string.IsNullOrWhiteSpace(options.BindDn) && !string.IsNullOrEmpty(options.BindPassword))
         {
             steps.Add(new LdapTestStep(
                 "Konfiguration",
@@ -290,9 +291,31 @@ public sealed class LdapDiagnosticService(IOptions<LdapOptions> options) : ILdap
         return true;
     }
 
-    private bool ValidateTransportConfiguration(List<LdapTestStep> steps)
+    private LdapOptions BuildTestOptions(LdapTestRequest request)
     {
-        if (_options.UseSsl && _options.UseStartTls)
+        var options = LdapSettingsStore.Clone(_options);
+        options.Server = request.Server?.Trim() ?? options.Server;
+        options.Port = request.Port is >= 1 and <= 65535 ? request.Port.Value : options.Port;
+        options.UseSsl = request.UseSsl ?? options.UseSsl;
+        options.UseStartTls = request.UseStartTls ?? options.UseStartTls;
+        options.SearchBase = request.SearchBase?.Trim() ?? options.SearchBase;
+        options.DefaultGroupPattern = request.GroupPattern?.Trim() ?? options.DefaultGroupPattern;
+        options.BindDn = request.BindDn?.Trim() ?? options.BindDn;
+        if (request.ClearBindPassword)
+        {
+            options.BindPassword = "";
+        }
+        else if (!string.IsNullOrEmpty(request.BindPassword))
+        {
+            options.BindPassword = request.BindPassword;
+        }
+        options.UsePaging = request.UsePaging ?? options.UsePaging;
+        return options;
+    }
+
+    private static bool ValidateTransportConfiguration(LdapOptions options, List<LdapTestStep> steps)
+    {
+        if (options.UseSsl && options.UseStartTls)
         {
             steps.Add(new LdapTestStep(
                 "Konfiguration",

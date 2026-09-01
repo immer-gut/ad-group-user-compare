@@ -21,6 +21,7 @@ Active Directory via LDAPS or LDAP+StartTLS
 - `wwwroot/`: Browseroberflaeche, Filter, CSV-Export und Uservergleich-Interaktion.
 - `Models/`: DTOs fuer Suche, Ergebnisse und Vergleich.
 - `Services/LdapAdGroupLookupService.cs`: LDAP-Suche, TLS/LDAPS-Verbindungsaufbau, Gruppenauflistung, rekursive Member-Aufloesung und User-Attribut-Mapping.
+- `Services/LdapSettingsStore.cs`: Laufzeitkonfiguration aus Environment-Defaults plus gespeicherten Dialogwerten.
 - `Services/ResultComparisonService.cs`: Vergleich zweier Benutzer innerhalb des geladenen Ergebnisses.
 
 ## LDAP-Ablauf
@@ -36,3 +37,4 @@ Der Bind nutzt fuer gehaertete Domain Controller standardmaessig LDAPS. Alternat
 ## Deployment
 
 Der Container lauscht intern auf Port `8080`. Portainer mappt standardmaessig Host-Port `3003`.
+LDAP-Dialogwerte werden unter `/app/data/ad-settings.json` gespeichert; der Stack bindet dafuer ein Docker-Volume ein.

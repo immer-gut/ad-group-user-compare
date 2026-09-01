@@ -10,6 +10,7 @@ AD Group User Compare ist eine Docker-faehige Web-App fuer Ubuntu/Portainer. Sie
 - **LDAP statt PowerShell/RSAT:** `System.DirectoryServices.Protocols` ersetzt das Windows-only `ActiveDirectory`-Modul.
 - **Vergleich aus geladenen Daten:** Der Benutzervergleich arbeitet weiterhin nur auf dem geladenen Ergebnis.
 - **Portainer-ready Defaults:** `portainer-stack.yml`, `docker-compose.yml` und `.env.example` nutzen denselben Standard-Port `3003`.
+- **Laufzeitkonfiguration:** Der LDAP-Testdialog kann LDAP-Werte testen und in `/app/data/ad-settings.json` speichern. Gespeicherte Werte haben Vorrang vor Portainer-Environment-Defaults.
 - **Keine Secrets im Repo:** LDAP-Passwoerter gehoeren in Portainer-Environment-Variablen oder lokale `.env`, nicht in Git.
 
 ## Grenzen
@@ -19,6 +20,7 @@ AD Group User Compare ist eine Docker-faehige Web-App fuer Ubuntu/Portainer. Sie
 - Windows Server 2025 bzw. gehaertete Domain Controller koennen Simple Bind ohne TLS mit `Strong authentication is required` ablehnen.
 - Der Vergleich betrachtet nur die aktuell geladene Ergebnismenge.
 - Reale AD-Performance haengt von Gruppenverschachtelung, LDAP-Indexen, Netzwerk und Berechtigungen ab.
+- Gespeicherte LDAP-Passwoerter liegen im Docker-Volume als Laufzeitkonfiguration. Das Volume muss entsprechend geschuetzt werden.
 
 ## Datenschutz
 

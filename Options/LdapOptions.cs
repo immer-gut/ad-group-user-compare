@@ -12,6 +12,8 @@ public sealed class LdapOptions
 
     public string SearchBase { get; set; } = "";
 
+    public string DefaultGroupPattern { get; set; } = "";
+
     public string BindDn { get; set; } = "";
 
     public string BindPassword { get; set; } = "";
@@ -21,4 +23,6 @@ public sealed class LdapOptions
     public int PageSize { get; set; } = 500;
 
     public int MemberRangeSize { get; set; } = 1500;
+
+    public string SettingsPath { get; set; } = "";
 }

@@ -5,8 +5,11 @@ services:
     restart: unless-stopped
     ports:
       - "${AD_GROUP_USER_COMPARE_PORT:-3003}:8080"
+    volumes:
+      - ad-group-user-compare-data:/app/data
     environment:
       ASPNETCORE_ENVIRONMENT: Production
+      Ad__SettingsPath: "${AD_SETTINGS_PATH:-/app/data/ad-settings.json}"
       Ad__Server: "${AD_LDAP_SERVER:-dc01.example.local}"
       Ad__Port: "${AD_LDAP_PORT:-636}"
       Ad__UseSsl: "${AD_USE_SSL:-true}"
@@ -15,3 +18,6 @@ services:
       Ad__BindDn: "${AD_BIND_DN:-}"
       Ad__BindPassword: "${AD_BIND_PASSWORD:-}"
       Ad__UsePaging: "${AD_USE_PAGING:-true}"
+
+volumes:
+  ad-group-user-compare-data:

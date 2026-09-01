@@ -2,14 +2,13 @@ using System.DirectoryServices.Protocols;
 using System.Net;
 using AdGroupUserCompare.Models;
 using AdGroupUserCompare.Options;
-using Microsoft.Extensions.Options;
 
 namespace AdGroupUserCompare.Services;
 
-public sealed class LdapAdGroupLookupService(IOptions<LdapOptions> options, ILogger<LdapAdGroupLookupService> logger)
+public sealed class LdapAdGroupLookupService(LdapSettingsStore settings, ILogger<LdapAdGroupLookupService> logger)
     : IAdGroupLookupService
 {
-    private readonly LdapOptions _options = options.Value;
+    private readonly LdapOptions _options = settings.Current;
 
     public Task<AdSearchResponse> SearchAsync(AdSearchRequest request, CancellationToken cancellationToken)
     {

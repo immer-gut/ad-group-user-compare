@@ -5,7 +5,8 @@ const state = {
   groupCount: 0,
   userCount: 0,
   comparison: [],
-  showingComparison: false
+  showingComparison: false,
+  config: null
 };
 
 const columns = [
@@ -61,6 +62,17 @@ const elements = {
   ldapTestConfig: document.querySelector("#ldapTestConfig"),
   ldapTestResults: document.querySelector("#ldapTestResults"),
   runLdapTestButton: document.querySelector("#runLdapTestButton"),
+  saveLdapSettingsButton: document.querySelector("#saveLdapSettingsButton"),
+  ldapServer: document.querySelector("#ldapServerInput"),
+  ldapPort: document.querySelector("#ldapPortInput"),
+  ldapUseSsl: document.querySelector("#ldapUseSslInput"),
+  ldapUseStartTls: document.querySelector("#ldapUseStartTlsInput"),
+  ldapSearchBase: document.querySelector("#ldapSearchBaseInput"),
+  ldapGroupPattern: document.querySelector("#ldapGroupPatternInput"),
+  ldapBindDn: document.querySelector("#ldapBindDnInput"),
+  ldapBindPassword: document.querySelector("#ldapBindPasswordInput"),
+  ldapClearPassword: document.querySelector("#ldapClearPasswordInput"),
+  ldapUsePaging: document.querySelector("#ldapUsePagingInput"),
   copyGroupsDialog: document.querySelector("#copyGroupsDialog"),
   copyGroupsText: document.querySelector("#copyGroupsText")
 };
@@ -84,6 +96,9 @@ function init() {
   elements.themeButton.addEventListener("click", toggleTheme);
   elements.testLdapButton.addEventListener("click", openLdapTestDialog);
   elements.runLdapTestButton.addEventListener("click", runLdapTest);
+  elements.saveLdapSettingsButton.addEventListener("click", saveLdapSettings);
+  elements.ldapUseSsl.addEventListener("change", keepSingleTlsMode);
+  elements.ldapUseStartTls.addEventListener("change", keepSingleTlsMode);
   renderRecentGroupPatterns();
   updateGroupPatternButton();
   updateFilterClearButton();
@@ -93,14 +108,27 @@ function init() {
 async function loadConfig() {
   const response = await fetch("/api/config");
   const config = await readJsonResponse(response, "Konfiguration konnte nicht geladen werden.");
+  state.config = config;
+  applyConfigToSearchFields(config);
+  updateConnectionSummary(config);
+}
+
+function applyConfigToSearchFields(config) {
   elements.server.value = config.server ?? "";
   elements.searchBase.value = config.searchBase ?? "";
+  if (!elements.groupPattern.value && config.groupPattern) {
+    elements.groupPattern.value = config.groupPattern;
+    updateGroupPatternButton();
+  }
+}
 
+function updateConnectionSummary(config) {
   const server = config.server || "kein Server gesetzt";
   const searchBase = config.searchBase || "keine SearchBase gesetzt";
   const ssl = config.useSsl ? "LDAPS" : (config.useStartTls ? "LDAP+StartTLS" : "LDAP");
   const bind = config.bindConfigured ? "Bind konfiguriert" : "kein Bind-DN";
-  elements.connectionSummary.textContent = `${ssl} · ${server} · ${searchBase} · ${bind}`;
+  const saved = config.settingsSaved ? "gespeichert" : "Stack-Defaults";
+  elements.connectionSummary.textContent = `${ssl} · ${server}:${config.port ?? ""} · ${searchBase} · ${bind} · ${saved}`;
 }
 
 async function search(event) {
@@ -338,11 +366,7 @@ async function runLdapTest() {
     const response = await fetch("/api/test-ldap", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        groupPattern: elements.groupPattern.value.trim(),
-        searchBase: elements.searchBase.value.trim(),
-        server: elements.server.value.trim()
-      })
+      body: JSON.stringify(readLdapSettingsForm())
     });
     const body = await readJsonResponse(response, "LDAP-Test fehlgeschlagen.");
     if (!response.ok) {
@@ -364,50 +388,89 @@ async function runLdapTest() {
 }
 
 function renderLdapTestConfig() {
-  const items = [
-    ["Server", elements.server.value.trim() || "aus Stack-Konfiguration"],
-    ["Port", "aus Stack-Konfiguration"],
-    ["SSL", "aus Stack-Konfiguration"],
-    ["StartTLS", "aus Stack-Konfiguration"],
-    ["SearchBase", elements.searchBase.value.trim() || "aus Stack-Konfiguration"],
-    ["Gruppenmuster", elements.groupPattern.value.trim() || "nicht gesetzt"],
-    ["Bind", "aus Stack-Konfiguration"]
-  ];
-
-  elements.ldapTestConfig.replaceChildren(...items.map(([label, value]) => {
-    const item = document.createElement("div");
-    const strong = document.createElement("strong");
-    const span = document.createElement("span");
-    strong.textContent = label;
-    span.textContent = value;
-    item.append(strong, span);
-    return item;
-  }));
+  const config = state.config ?? {};
+  elements.ldapServer.value = elements.server.value.trim() || config.server || "";
+  elements.ldapPort.value = String(config.port ?? 636);
+  elements.ldapUseSsl.checked = Boolean(config.useSsl);
+  elements.ldapUseStartTls.checked = Boolean(config.useStartTls);
+  elements.ldapSearchBase.value = elements.searchBase.value.trim() || config.searchBase || "";
+  elements.ldapGroupPattern.value = elements.groupPattern.value.trim() || config.groupPattern || "";
+  elements.ldapBindDn.value = config.bindDn || "";
+  elements.ldapBindPassword.value = "";
+  elements.ldapBindPassword.placeholder = config.bindPasswordConfigured
+    ? "gesetzt - leer lassen zum Beibehalten"
+    : "leer/nicht gesetzt";
+  elements.ldapClearPassword.checked = false;
+  elements.ldapUsePaging.checked = config.usePaging !== false;
 }
 
 function renderLdapTestResult(result) {
-  const configItems = [
-    ["Server", result.server || "nicht gesetzt"],
-    ["Port", String(result.port)],
-    ["SSL", result.useSsl ? "ja" : "nein"],
-    ["StartTLS", result.useStartTls ? "ja" : "nein"],
-    ["SearchBase", result.searchBase || "nicht gesetzt"],
-    ["Bind", result.bindConfigured ? "konfiguriert" : "anonym"],
-    ["Bind-DN", result.bindDn || "(leer)"],
-    ["Bind-Passwort", result.bindPasswordConfigured ? "gesetzt" : "leer/nicht gesetzt"]
-  ];
-
-  elements.ldapTestConfig.replaceChildren(...configItems.map(([label, value]) => {
-    const item = document.createElement("div");
-    const strong = document.createElement("strong");
-    const span = document.createElement("span");
-    strong.textContent = label;
-    span.textContent = value;
-    item.append(strong, span);
-    return item;
-  }));
-
   elements.ldapTestResults.replaceChildren(...(result.steps ?? []).map(renderTestStep));
+}
+
+async function saveLdapSettings() {
+  elements.saveLdapSettingsButton.disabled = true;
+  elements.saveLdapSettingsButton.textContent = "Speichert...";
+
+  try {
+    const response = await fetch("/api/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(readLdapSettingsForm())
+    });
+    const config = await readJsonResponse(response, "LDAP-Einstellungen konnten nicht gespeichert werden.");
+    if (!response.ok) {
+      throw new Error(config.error ?? "LDAP-Einstellungen konnten nicht gespeichert werden.");
+    }
+
+    state.config = config;
+    applyConfigToSearchFields(config);
+    renderLdapTestConfig();
+    updateConnectionSummary(config);
+    showToast("LDAP-Einstellungen gespeichert.");
+  } catch (error) {
+    showToast(error.message);
+    elements.ldapTestResults.replaceChildren(renderTestStep({
+      name: "Speichern",
+      success: false,
+      message: error.message,
+      detail: null
+    }));
+  } finally {
+    elements.saveLdapSettingsButton.disabled = false;
+    elements.saveLdapSettingsButton.textContent = "Einstellungen speichern";
+  }
+}
+
+function readLdapSettingsForm() {
+  const password = elements.ldapBindPassword.value;
+  return {
+    server: elements.ldapServer.value.trim(),
+    port: Number.parseInt(elements.ldapPort.value, 10) || 636,
+    useSsl: elements.ldapUseSsl.checked,
+    useStartTls: elements.ldapUseStartTls.checked,
+    searchBase: elements.ldapSearchBase.value.trim(),
+    groupPattern: elements.ldapGroupPattern.value.trim(),
+    bindDn: elements.ldapBindDn.value.trim(),
+    bindPassword: password.length > 0 ? password : null,
+    clearBindPassword: elements.ldapClearPassword.checked,
+    usePaging: elements.ldapUsePaging.checked
+  };
+}
+
+function keepSingleTlsMode(event) {
+  if (!event.target.checked) {
+    return;
+  }
+
+  if (event.target === elements.ldapUseSsl) {
+    elements.ldapUseStartTls.checked = false;
+    elements.ldapPort.value = "636";
+    return;
+  }
+
+  elements.ldapUseSsl.checked = false;
+  elements.ldapPort.value = "389";
 }
 
 function renderTestPlaceholder(message) {

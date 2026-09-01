@@ -11,8 +11,10 @@ builder.Services.PostConfigure<LdapOptions>(options =>
 {
     ApplyEnvironmentFallback(options, option => option.Server, value => options.Server = value, "AD_LDAP_SERVER");
     ApplyEnvironmentFallback(options, option => option.SearchBase, value => options.SearchBase = value, "AD_SEARCH_BASE");
+    ApplyEnvironmentFallback(options, option => option.DefaultGroupPattern, value => options.DefaultGroupPattern = value, "AD_GROUP_PATTERN");
     ApplyEnvironmentFallback(options, option => option.BindDn, value => options.BindDn = value, "AD_BIND_DN");
     ApplyEnvironmentFallback(options, option => option.BindPassword, value => options.BindPassword = value, "AD_BIND_PASSWORD");
+    ApplyEnvironmentFallback(options, option => option.SettingsPath, value => options.SettingsPath = value, "AD_SETTINGS_PATH");
 
     if (bool.TryParse(Environment.GetEnvironmentVariable("AD_USE_SSL"), out var useSsl))
     {
@@ -36,6 +38,7 @@ builder.Services.PostConfigure<LdapOptions>(options =>
 });
 
 builder.Services.AddSingleton<ResultComparisonService>();
+builder.Services.AddSingleton<LdapSettingsStore>();
 builder.Services.AddScoped<IAdGroupLookupService, LdapAdGroupLookupService>();
 builder.Services.AddScoped<ILdapDiagnosticService, LdapDiagnosticService>();
 
@@ -44,15 +47,28 @@ var app = builder.Build();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
-app.MapGet("/api/config", (IOptions<LdapOptions> options) =>
+app.MapGet("/api/config", (LdapSettingsStore settings) =>
 {
-    var value = options.Value;
-    return new AppConfigResponse(
-        value.Server,
-        value.SearchBase,
-        value.UseSsl,
-        value.UseStartTls,
-        !string.IsNullOrWhiteSpace(value.BindDn));
+    return settings.BuildResponse();
+});
+
+app.MapPost("/api/config", async (
+    [FromBody] LdapSettingsRequest request,
+    LdapSettingsStore settings,
+    CancellationToken cancellationToken) =>
+{
+    if (request.UseSsl && request.UseStartTls)
+    {
+        return Results.BadRequest(new { error = "SSL und StartTLS duerfen nicht gleichzeitig aktiv sein." });
+    }
+
+    if (request.Port is < 1 or > 65535)
+    {
+        return Results.BadRequest(new { error = "LDAP-Port muss zwischen 1 und 65535 liegen." });
+    }
+
+    await settings.SaveAsync(request, cancellationToken);
+    return Results.Ok(settings.BuildResponse());
 });
 
 app.MapPost("/api/search", async (
@@ -98,6 +114,7 @@ app.MapPost("/api/test-ldap", async (
             request.SearchBase ?? "",
             false,
             "",
+            false,
             false,
             [new LdapTestStep("Test", false, "LDAP-Test konnte nicht ausgefuehrt werden.", $"{ex.GetType().Name}: {ex.Message}")]));
     }

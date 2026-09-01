@@ -20,10 +20,12 @@ Die App ist die Linux-/Docker-Portierung des WPF-Tools `ad-group-user-exporter`:
 ## Konfiguration
 
 Die App liest Konfiguration aus `appsettings.json`, .NET-Environment-Variablen und klassischen `AD_*`-Variablen.
+Werte, die im LDAP-Testdialog gespeichert werden, liegen im Container-Volume unter `/app/data/ad-settings.json` und haben Vorrang vor den Environment-Defaults.
 
 | Variable | Beschreibung | Beispiel |
 | --- | --- | --- |
 | `AD_GROUP_USER_COMPARE_PORT` | Host-Port fuer Docker/Portainer | `3003` |
+| `AD_SETTINGS_PATH` oder `Ad__SettingsPath` | Speicherpfad fuer LDAP-Dialogwerte | `/app/data/ad-settings.json` |
 | `AD_LDAP_SERVER` oder `Ad__Server` | Domain Controller oder LDAP-Host | `dc01.example.local` |
 | `AD_LDAP_PORT` oder `Ad__Port` | LDAP-Port | `636` fuer LDAPS, `389` fuer StartTLS/LDAP |
 | `AD_USE_SSL` oder `Ad__UseSsl` | LDAPS aktivieren | `true` |
@@ -71,7 +73,10 @@ services:
     restart: unless-stopped
     ports:
       - "${AD_GROUP_USER_COMPARE_PORT:-3003}:8080"
+    volumes:
+      - ad-group-user-compare-data:/app/data
     environment:
+      AD_SETTINGS_PATH: "/app/data/ad-settings.json"
       AD_LDAP_SERVER: "dc01.example.local"
       AD_LDAP_PORT: "636"
       AD_USE_SSL: "true"
@@ -80,6 +85,9 @@ services:
       AD_BIND_DN: "CN=ldap-reader,OU=Service Accounts,DC=example,DC=local"
       AD_BIND_PASSWORD: "change-me"
       AD_USE_PAGING: "true"
+
+volumes:
+  ad-group-user-compare-data:
 ```
 
 ## AD-/LDAP-Hinweise
@@ -87,6 +95,11 @@ services:
 - Linux-Container koennen das Windows-`ActiveDirectory`-PowerShell-Modul nicht verwenden.
 - Der Port nutzt `System.DirectoryServices.Protocols` und spricht LDAP direkt.
 - In den meisten Umgebungen ist ein eigener LDAP-Lesebenutzer sinnvoll.
+- Im Dialog `LDAP testen` koennen Server, Port, SSL/StartTLS, SearchBase, Gruppenmuster, Bind-DN, Bind-Passwort und Paging getestet und gespeichert werden.
+- Portainer-Environment-Werte muessen nicht geloescht werden. Sie bleiben Start-/Fallbackwerte, gespeicherte Dialogwerte haben danach Vorrang.
+- Das Bind-Passwort wird nicht im Browser angezeigt. Beim Speichern bleibt ein vorhandenes gespeichertes Passwort erhalten, wenn das Passwortfeld leer bleibt.
+- Wenn kein Passwort gespeichert ist und das Passwortfeld leer bleibt, kann weiterhin `AD_BIND_PASSWORD` aus Portainer als Fallback genutzt werden.
+- Wer alle LDAP-Werte komplett ohne Portainer-Environment verwalten will, traegt das Passwort einmal im Dialog ein und speichert es.
 - Windows Server 2025 und gehaertete Domain Controller koennen unverschluesselten Simple Bind mit `Strong authentication is required` ablehnen.
 - Empfohlen ist LDAPS mit `AD_USE_SSL=true` und `AD_LDAP_PORT=636`.
 - Alternativ kann StartTLS auf Port 389 genutzt werden: `AD_USE_SSL=false`, `AD_USE_START_TLS=true`, `AD_LDAP_PORT=389`.

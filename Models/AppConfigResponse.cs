@@ -2,7 +2,13 @@ namespace AdGroupUserCompare.Models;
 
 public sealed record AppConfigResponse(
     string Server,
-    string SearchBase,
+    int Port,
     bool UseSsl,
     bool UseStartTls,
-    bool BindConfigured);
+    string SearchBase,
+    string GroupPattern,
+    bool BindConfigured,
+    string BindDn,
+    bool BindPasswordConfigured,
+    bool UsePaging,
+    bool SettingsSaved);

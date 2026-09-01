@@ -10,4 +10,5 @@ public sealed record LdapTestResponse(
     bool BindConfigured,
     string BindDn,
     bool BindPasswordConfigured,
+    bool UsePaging,
     IReadOnlyList<LdapTestStep> Steps);

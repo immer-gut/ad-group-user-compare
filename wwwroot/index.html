@@ -103,10 +103,52 @@
         <h2>LDAP-Test</h2>
         <button id="closeLdapTestButton" class="icon-button" type="submit" aria-label="Schließen">×</button>
       </header>
-      <div class="test-config" id="ldapTestConfig"></div>
+      <div class="test-config settings-grid" id="ldapTestConfig">
+        <label>
+          <span>LDAP-Server</span>
+          <input id="ldapServerInput" autocomplete="off" placeholder="dc01.example.local">
+        </label>
+        <label>
+          <span>Port</span>
+          <input id="ldapPortInput" type="number" min="1" max="65535" step="1" inputmode="numeric">
+        </label>
+        <label class="check-row">
+          <input id="ldapUseSslInput" type="checkbox">
+          <span>LDAPS / SSL</span>
+        </label>
+        <label class="check-row">
+          <input id="ldapUseStartTlsInput" type="checkbox">
+          <span>StartTLS</span>
+        </label>
+        <label>
+          <span>SearchBase</span>
+          <input id="ldapSearchBaseInput" autocomplete="off" placeholder="OU=Groups,DC=example,DC=local">
+        </label>
+        <label>
+          <span>Gruppenmuster</span>
+          <input id="ldapGroupPatternInput" autocomplete="off" placeholder="abc*_1a*">
+        </label>
+        <label>
+          <span>Bind-DN</span>
+          <input id="ldapBindDnInput" autocomplete="off" placeholder="CN=ldap-reader,OU=Service Accounts,DC=example,DC=local">
+        </label>
+        <label>
+          <span>Bind-Passwort</span>
+          <input id="ldapBindPasswordInput" type="password" autocomplete="new-password">
+        </label>
+        <label class="check-row">
+          <input id="ldapClearPasswordInput" type="checkbox">
+          <span>Passwort löschen</span>
+        </label>
+        <label class="check-row">
+          <input id="ldapUsePagingInput" type="checkbox">
+          <span>Paging nutzen</span>
+        </label>
+      </div>
       <div class="test-results" id="ldapTestResults"></div>
       <footer class="dialog-actions">
         <button id="runLdapTestButton" type="button">Test starten</button>
+        <button id="saveLdapSettingsButton" type="button">Einstellungen speichern</button>
         <button type="submit">Schließen</button>
       </footer>
     </form>
