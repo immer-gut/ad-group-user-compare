@@ -31,6 +31,11 @@ internal static class LdapExceptionFormatter
     public static string DiagnosticDetail(Exception ex)
     {
         var parts = new List<string> { ex.GetType().Name };
+        if (!string.IsNullOrWhiteSpace(ex.Message))
+        {
+            parts.Add(ex.Message);
+        }
+
         if (ex is LdapException ldapException)
         {
             parts.Add($"ErrorCode={ldapException.ErrorCode}");

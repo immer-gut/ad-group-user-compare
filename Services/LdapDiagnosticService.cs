@@ -261,7 +261,7 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
                         serverCertificate = certificate as X509Certificate2 ?? new X509Certificate2(certificate);
                     }
 
-                    return !verifyCertificate || errors == SslPolicyErrors.None;
+                    return true;
                 });
 
             await sslStream.AuthenticateAsClientAsync(new SslClientAuthenticationOptions
@@ -271,7 +271,13 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
                 CertificateRevocationCheckMode = X509RevocationMode.NoCheck
             }, timeout.Token);
 
-            return BuildTlsDetail(sslStream, serverCertificate, certificateErrors, verifyCertificate);
+            var detail = BuildTlsDetail(sslStream, serverCertificate, certificateErrors, verifyCertificate);
+            if (verifyCertificate && certificateErrors != SslPolicyErrors.None)
+            {
+                throw new InvalidOperationException($"Zertifikatspruefung fehlgeschlagen: {detail}");
+            }
+
+            return detail;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
