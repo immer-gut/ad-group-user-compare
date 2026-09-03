@@ -19,6 +19,7 @@ services:
       Ad__BindDn: "${AD_BIND_DN:-}"
       Ad__BindPassword: "${AD_BIND_PASSWORD:-}"
       Ad__UsePaging: "${AD_USE_PAGING:-true}"
+      AD_CA_CERT_PATH: "${AD_CA_CERT_PATH:-}"
 
 volumes:
   ad-group-user-compare-data:

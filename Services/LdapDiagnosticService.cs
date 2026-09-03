@@ -153,6 +153,8 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
 
     private LdapConnection CreateConnection(string server, LdapOptions options)
     {
+        NativeLdapTlsOptions.Apply(options);
+
         var identifier = new LdapDirectoryIdentifier(server, options.Port, fullyQualifiedDnsHostName: false, connectionless: false);
         var connection = new LdapConnection(identifier)
         {

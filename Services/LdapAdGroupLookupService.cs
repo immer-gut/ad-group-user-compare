@@ -72,6 +72,8 @@ public sealed class LdapAdGroupLookupService(LdapSettingsStore settings, ILogger
 
     private LdapConnection CreateConnection(string server)
     {
+        NativeLdapTlsOptions.Apply(_options);
+
         var identifier = new LdapDirectoryIdentifier(server, _options.Port, fullyQualifiedDnsHostName: false, connectionless: false);
         var connection = new LdapConnection(identifier)
         {

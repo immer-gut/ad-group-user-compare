@@ -18,4 +18,7 @@ ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 
 COPY --from=build /app/publish ./
-ENTRYPOINT ["dotnet", "AdGroupUserCompare.dll"]
+COPY docker-entrypoint.sh /usr/local/bin/ad-group-user-compare-entrypoint
+RUN chmod +x /usr/local/bin/ad-group-user-compare-entrypoint
+ENTRYPOINT ["ad-group-user-compare-entrypoint"]
+CMD ["dotnet", "AdGroupUserCompare.dll"]

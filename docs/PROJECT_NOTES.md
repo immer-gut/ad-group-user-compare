@@ -12,7 +12,8 @@ AD Group User Compare ist eine Docker-faehige Web-App fuer Ubuntu/Portainer. Sie
 - **Portainer-ready Defaults:** `portainer-stack.yml`, `docker-compose.yml` und `.env.example` nutzen denselben Standard-Port `3003`.
 - **Laufzeitkonfiguration:** Der LDAP-Testdialog kann LDAP-Werte testen und in `/app/data/ad-settings.json` speichern. Gespeicherte Werte haben Vorrang vor Portainer-Environment-Defaults.
 - **Zertifikatspruefung:** LDAPS/StartTLS prueft Server-Zertifikate standardmaessig. Fuer Diagnosefaelle kann die Pruefung im Testdialog oder per `AD_VERIFY_CERTIFICATE=false` deaktiviert werden.
-- **Keine Secrets im Repo:** LDAP-Passwoerter gehoeren in Portainer-Environment-Variablen oder lokale `.env`, nicht in Git.
+- **Interne CA:** Optional kann `AD_CA_CERT_PATH` auf eine gemountete CA-Datei zeigen; der Container importiert sie beim Start in den Linux-Truststore und setzt OpenLDAP-TLS-Defaults.
+- **Keine Secrets im Repo:** LDAP-Passwoerter gehoeren in Portainer-Environment-Variablen oder lokale `.env`, nicht in Git. Interne Zertifikats- und Schluesseldateien werden ebenfalls ignoriert und nur zur Laufzeit gemountet.
 
 ## Grenzen
 
@@ -21,6 +22,8 @@ AD Group User Compare ist eine Docker-faehige Web-App fuer Ubuntu/Portainer. Sie
 - Windows Server 2025 bzw. gehaertete Domain Controller koennen Simple Bind ohne TLS mit `Strong authentication is required` ablehnen.
 - LDAPS auf Port 389 ist eine Fehlkonfiguration; der Dialog korrigiert auf 636 und die API bricht mit einer klaren Meldung ab.
 - Der LDAP-Test prueft DNS, TCP-Port und bei LDAPS den TLS-Handshake mit Zertifikatsdetails vor dem Bind, damit Container-Netzwerk- und TLS-Probleme frueh sichtbar werden.
+- `RemoteCertificateChainErrors` bedeutet in der Regel, dass die interne AD-CA im Container nicht vertraut ist.
+- Bei deaktivierter Zertifikatspruefung muss auch OpenLDAP/libldap `TLS_REQCERT=never` sehen, sonst kann `LdapConnection.Bind` trotz erfolgreichem eigenem TLS-Test mit `ErrorCode=81` abbrechen.
 - Deaktivierte Zertifikatspruefung erleichtert Tests mit internen oder selbstsignierten Zertifikaten, reduziert aber die Sicherheit der TLS-Verbindung.
 - Der Vergleich betrachtet nur die aktuell geladene Ergebnismenge.
 - Reale AD-Performance haengt von Gruppenverschachtelung, LDAP-Indexen, Netzwerk und Berechtigungen ab.

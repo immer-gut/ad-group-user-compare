@@ -21,8 +21,11 @@ Active Directory via LDAPS or LDAP+StartTLS
 - `wwwroot/`: Browseroberflaeche, Filter, CSV-Export und Uservergleich-Interaktion.
 - `Models/`: DTOs fuer Suche, Ergebnisse und Vergleich.
 - `Services/LdapAdGroupLookupService.cs`: LDAP-Suche, TLS/LDAPS-Verbindungsaufbau inklusive optionaler Zertifikatspruefung, Gruppenauflistung, rekursive Member-Aufloesung und User-Attribut-Mapping.
+- `Services/LdapDiagnosticService.cs`: Schrittweiser LDAP-Test fuer DNS, TCP, TLS, Bind, SearchBase und Gruppenmuster.
+- `Services/NativeLdapTlsOptions.cs`: Uebergibt Zertifikatspruefung und CA-Trust an die native OpenLDAP-Bibliothek.
 - `Services/LdapSettingsStore.cs`: Laufzeitkonfiguration aus Environment-Defaults plus gespeicherten Dialogwerten.
 - `Services/ResultComparisonService.cs`: Vergleich zweier Benutzer innerhalb des geladenen Ergebnisses.
+- `docker-entrypoint.sh`: Importiert optional die interne CA und erzeugt die OpenLDAP-TLS-Konfiguration vor dem App-Start.
 
 ## LDAP-Ablauf
 
@@ -38,3 +41,4 @@ Der Bind nutzt fuer gehaertete Domain Controller standardmaessig LDAPS. Alternat
 
 Der Container lauscht intern auf Port `8080`. Portainer mappt standardmaessig Host-Port `3003`.
 LDAP-Dialogwerte werden unter `/app/data/ad-settings.json` gespeichert; der Stack bindet dafuer ein Docker-Volume ein.
+Eine per `AD_CA_CERT_PATH` gemountete CA wird beim Start in den System-Truststore importiert. `TLS_CACERT` verweist auf diesen Truststore; `TLS_REQCERT` folgt der wirksamen Zertifikatspruefung.
