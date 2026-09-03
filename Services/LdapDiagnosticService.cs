@@ -341,6 +341,26 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
             return false;
         }
 
+        if (options.UseSsl && options.Port == 389)
+        {
+            steps.Add(new LdapTestStep(
+                "Konfiguration",
+                false,
+                "LDAPS-Port passt nicht.",
+                "LDAPS / SSL ist aktiv, aber Port 389 ist gesetzt. Nutze fuer LDAPS Port 636 oder fuer Port 389 StartTLS."));
+            return false;
+        }
+
+        if (options.UseStartTls && options.Port == 636)
+        {
+            steps.Add(new LdapTestStep(
+                "Konfiguration",
+                false,
+                "StartTLS-Port passt nicht.",
+                "StartTLS ist aktiv, aber Port 636 ist gesetzt. Nutze fuer StartTLS Port 389 oder fuer Port 636 LDAPS."));
+            return false;
+        }
+
         return true;
     }
 

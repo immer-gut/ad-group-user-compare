@@ -395,6 +395,7 @@ function renderLdapTestConfig() {
   elements.ldapPort.value = String(config.port ?? 636);
   elements.ldapUseSsl.checked = Boolean(config.useSsl);
   elements.ldapUseStartTls.checked = Boolean(config.useStartTls);
+  normalizeTlsPort();
   elements.ldapVerifyCertificate.checked = config.verifyCertificate !== false;
   elements.ldapSearchBase.value = elements.searchBase.value.trim() || config.searchBase || "";
   elements.ldapGroupPattern.value = elements.groupPattern.value.trim() || config.groupPattern || "";
@@ -475,6 +476,18 @@ function keepSingleTlsMode(event) {
 
   elements.ldapUseSsl.checked = false;
   elements.ldapPort.value = "389";
+}
+
+function normalizeTlsPort() {
+  const port = Number.parseInt(elements.ldapPort.value, 10);
+  if (elements.ldapUseSsl.checked && (Number.isNaN(port) || port === 389)) {
+    elements.ldapPort.value = "636";
+    return;
+  }
+
+  if (elements.ldapUseStartTls.checked && (Number.isNaN(port) || port === 636)) {
+    elements.ldapPort.value = "389";
+  }
 }
 
 function renderTestPlaceholder(message) {

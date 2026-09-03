@@ -144,6 +144,16 @@ public sealed class LdapAdGroupLookupService(LdapSettingsStore settings, ILogger
         {
             throw new InvalidOperationException("AD_USE_SSL und AD_USE_START_TLS duerfen nicht gleichzeitig aktiv sein. Nutze entweder LDAPS auf Port 636 oder StartTLS auf Port 389.");
         }
+
+        if (_options.UseSsl && _options.Port == 389)
+        {
+            throw new InvalidOperationException("LDAPS ist aktiv, aber Port 389 ist gesetzt. Nutze fuer LDAPS Port 636 oder fuer Port 389 StartTLS.");
+        }
+
+        if (_options.UseStartTls && _options.Port == 636)
+        {
+            throw new InvalidOperationException("StartTLS ist aktiv, aber Port 636 ist gesetzt. Nutze fuer StartTLS Port 389 oder fuer Port 636 LDAPS.");
+        }
     }
 
     private List<GroupEntry> FindGroups(LdapConnection connection, string searchBase, string groupPattern, CancellationToken cancellationToken)

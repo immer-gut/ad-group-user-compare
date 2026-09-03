@@ -105,6 +105,7 @@ volumes:
 - Windows Server 2025 und gehaertete Domain Controller koennen unverschluesselten Simple Bind mit `Strong authentication is required` ablehnen.
 - Empfohlen ist LDAPS mit `AD_USE_SSL=true` und `AD_LDAP_PORT=636`.
 - Alternativ kann StartTLS auf Port 389 genutzt werden: `AD_USE_SSL=false`, `AD_USE_START_TLS=true`, `AD_LDAP_PORT=389`.
+- `LDAPS / SSL` zusammen mit Port `389` ist normalerweise falsch. Der Dialog korrigiert das auf Port `636`; die API meldet diese Kombination als Konfigurationsfehler.
 - Der Container muss dem Zertifikat des Domain Controllers bzw. der internen CA vertrauen, sonst schlaegt LDAPS/StartTLS beim TLS-Aufbau fehl.
 - Falls die interne CA im Container noch nicht vertraut ist, kann die Zertifikatspruefung im Testdialog oder mit `AD_VERIFY_CERTIFICATE=false` deaktiviert werden. Das sollte nur zur Diagnose oder in kontrollierten internen Netzen genutzt werden.
 - Der Button `LDAP testen` prueft die Verbindung schrittweise und zeigt konkrete Fehler fuer Bind, SearchBase oder Gruppenmuster.
