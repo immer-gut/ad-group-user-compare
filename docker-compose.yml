@@ -15,6 +15,7 @@ services:
       Ad__Port: "${AD_LDAP_PORT:-636}"
       Ad__UseSsl: "${AD_USE_SSL:-true}"
       Ad__UseStartTls: "${AD_USE_START_TLS:-false}"
+      Ad__VerifyCertificate: "${AD_VERIFY_CERTIFICATE:-true}"
       Ad__SearchBase: "${AD_SEARCH_BASE:-OU=Groups,DC=example,DC=local}"
       Ad__BindDn: "${AD_BIND_DN:-}"
       Ad__BindPassword: "${AD_BIND_PASSWORD:-}"

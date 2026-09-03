@@ -26,6 +26,11 @@ builder.Services.PostConfigure<LdapOptions>(options =>
         options.UseStartTls = useStartTls;
     }
 
+    if (bool.TryParse(Environment.GetEnvironmentVariable("AD_VERIFY_CERTIFICATE"), out var verifyCertificate))
+    {
+        options.VerifyCertificate = verifyCertificate;
+    }
+
     if (bool.TryParse(Environment.GetEnvironmentVariable("AD_USE_PAGING"), out var usePaging))
     {
         options.UsePaging = usePaging;
@@ -111,6 +116,7 @@ app.MapPost("/api/test-ldap", async (
             0,
             false,
             false,
+            request.VerifyCertificate ?? true,
             request.SearchBase ?? "",
             false,
             "",

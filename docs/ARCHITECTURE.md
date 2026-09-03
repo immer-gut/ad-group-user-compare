@@ -20,7 +20,7 @@ Active Directory via LDAPS or LDAP+StartTLS
 - `Program.cs`: API-Endpunkte, Konfiguration und Static-File-Hosting.
 - `wwwroot/`: Browseroberflaeche, Filter, CSV-Export und Uservergleich-Interaktion.
 - `Models/`: DTOs fuer Suche, Ergebnisse und Vergleich.
-- `Services/LdapAdGroupLookupService.cs`: LDAP-Suche, TLS/LDAPS-Verbindungsaufbau, Gruppenauflistung, rekursive Member-Aufloesung und User-Attribut-Mapping.
+- `Services/LdapAdGroupLookupService.cs`: LDAP-Suche, TLS/LDAPS-Verbindungsaufbau inklusive optionaler Zertifikatspruefung, Gruppenauflistung, rekursive Member-Aufloesung und User-Attribut-Mapping.
 - `Services/LdapSettingsStore.cs`: Laufzeitkonfiguration aus Environment-Defaults plus gespeicherten Dialogwerten.
 - `Services/ResultComparisonService.cs`: Vergleich zweier Benutzer innerhalb des geladenen Ergebnisses.
 
@@ -32,7 +32,7 @@ Active Directory via LDAPS or LDAP+StartTLS
 4. Benutzerattribute werden per Base-Search gelesen.
 5. `userAccountControl` bestimmt, ob ein Benutzer aktiv ist.
 
-Der Bind nutzt fuer gehaertete Domain Controller standardmaessig LDAPS. Alternativ kann StartTLS auf Port 389 aktiviert werden.
+Der Bind nutzt fuer gehaertete Domain Controller standardmaessig LDAPS. Alternativ kann StartTLS auf Port 389 aktiviert werden. Server-Zertifikate werden standardmaessig geprueft; fuer Diagnose oder interne Testnetze kann die Pruefung deaktiviert werden.
 
 ## Deployment
 

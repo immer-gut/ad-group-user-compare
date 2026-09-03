@@ -45,7 +45,7 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
             "Konfiguration",
             true,
             "Pflichtwerte vorhanden.",
-            $"{ProtocolName(options)} {server}:{options.Port}, SearchBase {searchBase}, Bind-DN {BindDnLabel(options)}, Passwort {BindPasswordLabel(options)}, Paging {PagingLabel(options)}, Referrals aus"));
+            $"{ProtocolName(options)} {server}:{options.Port}, SearchBase {searchBase}, Bind-DN {BindDnLabel(options)}, Passwort {BindPasswordLabel(options)}, Zertifikat {CertificateLabel(options)}, Paging {PagingLabel(options)}, Referrals aus"));
 
         LdapConnection? connection = null;
         if (!TryStep(
@@ -132,9 +132,18 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
         };
 
         connection.SessionOptions.ProtocolVersion = 3;
+        ConfigureCertificateValidation(connection, options);
         connection.SessionOptions.SecureSocketLayer = options.UseSsl;
         connection.SessionOptions.ReferralChasing = ReferralChasingOptions.None;
         return connection;
+    }
+
+    private static void ConfigureCertificateValidation(LdapConnection connection, LdapOptions options)
+    {
+        if (!options.VerifyCertificate)
+        {
+            connection.SessionOptions.VerifyServerCertificate = (_, _) => true;
+        }
     }
 
     private void StartTransportLayerSecurity(LdapConnection connection)
@@ -233,6 +242,7 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
             options.Port,
             options.UseSsl,
             options.UseStartTls,
+            options.VerifyCertificate,
             searchBase,
             !string.IsNullOrWhiteSpace(options.BindDn),
             options.BindDn,
@@ -264,6 +274,11 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
     private string PagingLabel(LdapOptions options)
     {
         return options.UsePaging ? "aktiv" : "deaktiviert";
+    }
+
+    private string CertificateLabel(LdapOptions options)
+    {
+        return options.VerifyCertificate ? "wird geprueft" : "Pruefung deaktiviert";
     }
 
     private static bool ValidateBindConfiguration(LdapOptions options, List<LdapTestStep> steps)
@@ -298,6 +313,7 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
         options.Port = request.Port is >= 1 and <= 65535 ? request.Port.Value : options.Port;
         options.UseSsl = request.UseSsl ?? options.UseSsl;
         options.UseStartTls = request.UseStartTls ?? options.UseStartTls;
+        options.VerifyCertificate = request.VerifyCertificate ?? options.VerifyCertificate;
         options.SearchBase = request.SearchBase?.Trim() ?? options.SearchBase;
         options.DefaultGroupPattern = request.GroupPattern?.Trim() ?? options.DefaultGroupPattern;
         options.BindDn = request.BindDn?.Trim() ?? options.BindDn;

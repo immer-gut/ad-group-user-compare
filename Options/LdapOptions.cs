@@ -10,6 +10,8 @@ public sealed class LdapOptions
 
     public bool UseStartTls { get; set; }
 
+    public bool VerifyCertificate { get; set; } = true;
+
     public string SearchBase { get; set; } = "";
 
     public string DefaultGroupPattern { get; set; } = "";

@@ -67,6 +67,7 @@ const elements = {
   ldapPort: document.querySelector("#ldapPortInput"),
   ldapUseSsl: document.querySelector("#ldapUseSslInput"),
   ldapUseStartTls: document.querySelector("#ldapUseStartTlsInput"),
+  ldapVerifyCertificate: document.querySelector("#ldapVerifyCertificateInput"),
   ldapSearchBase: document.querySelector("#ldapSearchBaseInput"),
   ldapGroupPattern: document.querySelector("#ldapGroupPatternInput"),
   ldapBindDn: document.querySelector("#ldapBindDnInput"),
@@ -127,8 +128,9 @@ function updateConnectionSummary(config) {
   const searchBase = config.searchBase || "keine SearchBase gesetzt";
   const ssl = config.useSsl ? "LDAPS" : (config.useStartTls ? "LDAP+StartTLS" : "LDAP");
   const bind = config.bindConfigured ? "Bind konfiguriert" : "kein Bind-DN";
+  const certificate = config.verifyCertificate === false ? "Zertifikat nicht geprüft" : "Zertifikat geprüft";
   const saved = config.settingsSaved ? "gespeichert" : "Stack-Defaults";
-  elements.connectionSummary.textContent = `${ssl} · ${server}:${config.port ?? ""} · ${searchBase} · ${bind} · ${saved}`;
+  elements.connectionSummary.textContent = `${ssl} · ${server}:${config.port ?? ""} · ${searchBase} · ${bind} · ${certificate} · ${saved}`;
 }
 
 async function search(event) {
@@ -393,6 +395,7 @@ function renderLdapTestConfig() {
   elements.ldapPort.value = String(config.port ?? 636);
   elements.ldapUseSsl.checked = Boolean(config.useSsl);
   elements.ldapUseStartTls.checked = Boolean(config.useStartTls);
+  elements.ldapVerifyCertificate.checked = config.verifyCertificate !== false;
   elements.ldapSearchBase.value = elements.searchBase.value.trim() || config.searchBase || "";
   elements.ldapGroupPattern.value = elements.groupPattern.value.trim() || config.groupPattern || "";
   elements.ldapBindDn.value = config.bindDn || "";
@@ -449,6 +452,7 @@ function readLdapSettingsForm() {
     port: Number.parseInt(elements.ldapPort.value, 10) || 636,
     useSsl: elements.ldapUseSsl.checked,
     useStartTls: elements.ldapUseStartTls.checked,
+    verifyCertificate: elements.ldapVerifyCertificate.checked,
     searchBase: elements.ldapSearchBase.value.trim(),
     groupPattern: elements.ldapGroupPattern.value.trim(),
     bindDn: elements.ldapBindDn.value.trim(),

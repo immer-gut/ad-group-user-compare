@@ -11,6 +11,7 @@ AD Group User Compare ist eine Docker-faehige Web-App fuer Ubuntu/Portainer. Sie
 - **Vergleich aus geladenen Daten:** Der Benutzervergleich arbeitet weiterhin nur auf dem geladenen Ergebnis.
 - **Portainer-ready Defaults:** `portainer-stack.yml`, `docker-compose.yml` und `.env.example` nutzen denselben Standard-Port `3003`.
 - **Laufzeitkonfiguration:** Der LDAP-Testdialog kann LDAP-Werte testen und in `/app/data/ad-settings.json` speichern. Gespeicherte Werte haben Vorrang vor Portainer-Environment-Defaults.
+- **Zertifikatspruefung:** LDAPS/StartTLS prueft Server-Zertifikate standardmaessig. Fuer Diagnosefaelle kann die Pruefung im Testdialog oder per `AD_VERIFY_CERTIFICATE=false` deaktiviert werden.
 - **Keine Secrets im Repo:** LDAP-Passwoerter gehoeren in Portainer-Environment-Variablen oder lokale `.env`, nicht in Git.
 
 ## Grenzen
@@ -18,6 +19,7 @@ AD Group User Compare ist eine Docker-faehige Web-App fuer Ubuntu/Portainer. Sie
 - Es ist kein vollstaendiges AD-Reporting-System.
 - Kerberos/Integrated Windows Auth ist im Linux-Container nicht das Standardmodell; empfohlen ist LDAP Simple Bind ueber einen Lesebenutzer via LDAPS oder StartTLS.
 - Windows Server 2025 bzw. gehaertete Domain Controller koennen Simple Bind ohne TLS mit `Strong authentication is required` ablehnen.
+- Deaktivierte Zertifikatspruefung erleichtert Tests mit internen oder selbstsignierten Zertifikaten, reduziert aber die Sicherheit der TLS-Verbindung.
 - Der Vergleich betrachtet nur die aktuell geladene Ergebnismenge.
 - Reale AD-Performance haengt von Gruppenverschachtelung, LDAP-Indexen, Netzwerk und Berechtigungen ab.
 - Gespeicherte LDAP-Passwoerter liegen im Docker-Volume als Laufzeitkonfiguration. Das Volume muss entsprechend geschuetzt werden.

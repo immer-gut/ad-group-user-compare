@@ -16,7 +16,7 @@ internal static class LdapExceptionFormatter
             LdapException ldapException => ldapException.ErrorCode switch
             {
                 49 => "Bind fehlgeschlagen: Benutzername oder Passwort wird abgelehnt.",
-                81 => "Server nicht erreichbar oder Port/SSL passt nicht.",
+                81 => "Server nicht erreichbar, Port/SSL passt nicht oder das Zertifikat wird abgelehnt.",
                 91 => "LDAP-Verbindung konnte nicht hergestellt werden.",
                 _ => $"LDAP-Fehler {ldapException.ErrorCode}: {ldapException.Message}"
             },

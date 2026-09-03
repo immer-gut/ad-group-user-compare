@@ -5,6 +5,7 @@ public sealed record AppConfigResponse(
     int Port,
     bool UseSsl,
     bool UseStartTls,
+    bool VerifyCertificate,
     string SearchBase,
     string GroupPattern,
     bool BindConfigured,

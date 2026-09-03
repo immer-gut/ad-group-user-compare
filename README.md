@@ -30,6 +30,7 @@ Werte, die im LDAP-Testdialog gespeichert werden, liegen im Container-Volume unt
 | `AD_LDAP_PORT` oder `Ad__Port` | LDAP-Port | `636` fuer LDAPS, `389` fuer StartTLS/LDAP |
 | `AD_USE_SSL` oder `Ad__UseSsl` | LDAPS aktivieren | `true` |
 | `AD_USE_START_TLS` oder `Ad__UseStartTls` | StartTLS auf Port 389 aktivieren | `false` |
+| `AD_VERIFY_CERTIFICATE` oder `Ad__VerifyCertificate` | Server-Zertifikat bei LDAPS/StartTLS pruefen | `true` |
 | `AD_SEARCH_BASE` oder `Ad__SearchBase` | Basis-DN fuer Gruppensuche | `OU=Groups,DC=example,DC=local` |
 | `AD_BIND_DN` oder `Ad__BindDn` | Bind-DN fuer LDAP | `CN=ldap-reader,OU=Service Accounts,DC=example,DC=local` |
 | `AD_BIND_PASSWORD` oder `Ad__BindPassword` | Passwort fuer LDAP-Bind | `change-me` |
@@ -81,6 +82,7 @@ services:
       AD_LDAP_PORT: "636"
       AD_USE_SSL: "true"
       AD_USE_START_TLS: "false"
+      AD_VERIFY_CERTIFICATE: "true"
       AD_SEARCH_BASE: "OU=Groups,DC=example,DC=local"
       AD_BIND_DN: "CN=ldap-reader,OU=Service Accounts,DC=example,DC=local"
       AD_BIND_PASSWORD: "change-me"
@@ -95,7 +97,7 @@ volumes:
 - Linux-Container koennen das Windows-`ActiveDirectory`-PowerShell-Modul nicht verwenden.
 - Der Port nutzt `System.DirectoryServices.Protocols` und spricht LDAP direkt.
 - In den meisten Umgebungen ist ein eigener LDAP-Lesebenutzer sinnvoll.
-- Im Dialog `LDAP testen` koennen Server, Port, SSL/StartTLS, SearchBase, Gruppenmuster, Bind-DN, Bind-Passwort und Paging getestet und gespeichert werden.
+- Im Dialog `LDAP testen` koennen Server, Port, SSL/StartTLS, Zertifikatspruefung, SearchBase, Gruppenmuster, Bind-DN, Bind-Passwort und Paging getestet und gespeichert werden.
 - Portainer-Environment-Werte muessen nicht geloescht werden. Sie bleiben Start-/Fallbackwerte, gespeicherte Dialogwerte haben danach Vorrang.
 - Das Bind-Passwort wird nicht im Browser angezeigt. Beim Speichern bleibt ein vorhandenes gespeichertes Passwort erhalten, wenn das Passwortfeld leer bleibt.
 - Wenn kein Passwort gespeichert ist und das Passwortfeld leer bleibt, kann weiterhin `AD_BIND_PASSWORD` aus Portainer als Fallback genutzt werden.
@@ -104,6 +106,7 @@ volumes:
 - Empfohlen ist LDAPS mit `AD_USE_SSL=true` und `AD_LDAP_PORT=636`.
 - Alternativ kann StartTLS auf Port 389 genutzt werden: `AD_USE_SSL=false`, `AD_USE_START_TLS=true`, `AD_LDAP_PORT=389`.
 - Der Container muss dem Zertifikat des Domain Controllers bzw. der internen CA vertrauen, sonst schlaegt LDAPS/StartTLS beim TLS-Aufbau fehl.
+- Falls die interne CA im Container noch nicht vertraut ist, kann die Zertifikatspruefung im Testdialog oder mit `AD_VERIFY_CERTIFICATE=false` deaktiviert werden. Das sollte nur zur Diagnose oder in kontrollierten internen Netzen genutzt werden.
 - Der Button `LDAP testen` prueft die Verbindung schrittweise und zeigt konkrete Fehler fuer Bind, SearchBase oder Gruppenmuster.
 - Wenn `Gruppenmuster ohne Paging` funktioniert, aber `Gruppenmuster mit Paging` fehlschlaegt, kann `AD_USE_PAGING=false` als Workaround gesetzt werden.
 - Der Vergleich betrachtet nur das aktuell geladene Ergebnis, nicht alle Gruppen eines Benutzers im gesamten AD.

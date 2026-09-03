@@ -46,6 +46,7 @@ public sealed class LdapSettingsStore
             Port = NormalizePort(request.Port),
             UseSsl = request.UseSsl,
             UseStartTls = request.UseStartTls,
+            VerifyCertificate = request.VerifyCertificate,
             SearchBase = request.SearchBase?.Trim() ?? "",
             DefaultGroupPattern = request.GroupPattern?.Trim() ?? "",
             BindDn = request.BindDn?.Trim() ?? "",
@@ -80,6 +81,7 @@ public sealed class LdapSettingsStore
             value.Port,
             value.UseSsl,
             value.UseStartTls,
+            value.VerifyCertificate,
             value.SearchBase,
             value.DefaultGroupPattern,
             !string.IsNullOrWhiteSpace(value.BindDn),
@@ -137,6 +139,7 @@ public sealed class LdapSettingsStore
         current.Port = NormalizePort(saved.Port);
         current.UseSsl = saved.UseSsl;
         current.UseStartTls = saved.UseStartTls;
+        current.VerifyCertificate = saved.VerifyCertificate;
         current.SearchBase = saved.SearchBase ?? "";
         current.DefaultGroupPattern = saved.DefaultGroupPattern ?? "";
         current.BindDn = saved.BindDn ?? "";
@@ -156,6 +159,7 @@ public sealed class LdapSettingsStore
             Port = value.Port,
             UseSsl = value.UseSsl,
             UseStartTls = value.UseStartTls,
+            VerifyCertificate = value.VerifyCertificate,
             SearchBase = value.SearchBase,
             DefaultGroupPattern = value.DefaultGroupPattern,
             BindDn = value.BindDn,
@@ -186,6 +190,8 @@ public sealed class LdapSettingsStore
         public bool UseSsl { get; set; } = true;
 
         public bool UseStartTls { get; set; }
+
+        public bool VerifyCertificate { get; set; } = true;
 
         public string? SearchBase { get; set; }
 

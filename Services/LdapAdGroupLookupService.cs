@@ -80,6 +80,7 @@ public sealed class LdapAdGroupLookupService(LdapSettingsStore settings, ILogger
         };
 
         connection.SessionOptions.ProtocolVersion = 3;
+        ConfigureCertificateValidation(connection);
         connection.SessionOptions.SecureSocketLayer = _options.UseSsl;
         connection.SessionOptions.ReferralChasing = ReferralChasingOptions.None;
         StartTransportLayerSecurity(connection);
@@ -113,6 +114,14 @@ public sealed class LdapAdGroupLookupService(LdapSettingsStore settings, ILogger
         if (_options.UseStartTls)
         {
             connection.SessionOptions.StartTransportLayerSecurity(new DirectoryControlCollection());
+        }
+    }
+
+    private void ConfigureCertificateValidation(LdapConnection connection)
+    {
+        if (!_options.VerifyCertificate)
+        {
+            connection.SessionOptions.VerifyServerCertificate = (_, _) => true;
         }
     }
 

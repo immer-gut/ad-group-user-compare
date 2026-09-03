@@ -14,6 +14,8 @@ public sealed class LdapTestRequest
 
     public bool? UseStartTls { get; set; }
 
+    public bool? VerifyCertificate { get; set; }
+
     public string? BindDn { get; set; }
 
     public string? BindPassword { get; set; }
