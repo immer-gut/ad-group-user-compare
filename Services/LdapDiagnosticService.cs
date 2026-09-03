@@ -1,5 +1,6 @@
 using System.DirectoryServices.Protocols;
 using System.Net;
+using System.Net.Sockets;
 using AdGroupUserCompare.Models;
 using AdGroupUserCompare.Options;
 
@@ -9,7 +10,7 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
 {
     private readonly LdapOptions _options = settings.Current;
 
-    public Task<LdapTestResponse> TestAsync(LdapTestRequest request, CancellationToken cancellationToken)
+    public async Task<LdapTestResponse> TestAsync(LdapTestRequest request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -22,23 +23,23 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
         if (string.IsNullOrWhiteSpace(server))
         {
             steps.Add(new LdapTestStep("Konfiguration", false, "LDAP-Server fehlt.", "Setze AD_LDAP_SERVER oder Ad__Server im Portainer Stack."));
-            return Task.FromResult(BuildResponse(false, options, server, searchBase, steps));
+            return BuildResponse(false, options, server, searchBase, steps);
         }
 
         if (string.IsNullOrWhiteSpace(searchBase))
         {
             steps.Add(new LdapTestStep("Konfiguration", false, "SearchBase fehlt.", "Setze AD_SEARCH_BASE oder Ad__SearchBase, z. B. DC=example,DC=local."));
-            return Task.FromResult(BuildResponse(false, options, server, searchBase, steps));
+            return BuildResponse(false, options, server, searchBase, steps);
         }
 
         if (!ValidateBindConfiguration(options, steps))
         {
-            return Task.FromResult(BuildResponse(false, options, server, searchBase, steps));
+            return BuildResponse(false, options, server, searchBase, steps);
         }
 
         if (!ValidateTransportConfiguration(options, steps))
         {
-            return Task.FromResult(BuildResponse(false, options, server, searchBase, steps));
+            return BuildResponse(false, options, server, searchBase, steps);
         }
 
         steps.Add(new LdapTestStep(
@@ -46,6 +47,21 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
             true,
             "Pflichtwerte vorhanden.",
             $"{ProtocolName(options)} {server}:{options.Port}, SearchBase {searchBase}, Bind-DN {BindDnLabel(options)}, Passwort {BindPasswordLabel(options)}, Zertifikat {CertificateLabel(options)}, Paging {PagingLabel(options)}, Referrals aus"));
+
+        if (!TryStep("DNS", steps, () => ResolveServerAddresses(server), "LDAP-Servername aufgeloest."))
+        {
+            return BuildResponse(false, options, server, searchBase, steps);
+        }
+
+        if (!await TryStepAsync(
+            "TCP-Port",
+            steps,
+            token => ProbeTcpPortAsync(server, options.Port, token),
+            "TCP-Port erreichbar.",
+            cancellationToken))
+        {
+            return BuildResponse(false, options, server, searchBase, steps);
+        }
 
         LdapConnection? connection = null;
         if (!TryStep(
@@ -58,7 +74,7 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
             },
             "Verbindungsaufbau vorbereitet."))
         {
-            return Task.FromResult(BuildResponse(false, options, server, searchBase, steps));
+            return BuildResponse(false, options, server, searchBase, steps);
         }
 
         var activeConnection = connection ?? throw new InvalidOperationException("LDAP-Verbindung wurde nicht initialisiert.");
@@ -67,12 +83,12 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
             if (options.UseStartTls &&
                 !TryStep("StartTLS", steps, () => StartTransportLayerSecurity(activeConnection), "StartTLS erfolgreich."))
             {
-                return Task.FromResult(BuildResponse(false, options, server, searchBase, steps));
+                return BuildResponse(false, options, server, searchBase, steps);
             }
 
             if (!TryStep("Bind", steps, () => BindConnection(activeConnection, options), "LDAP-Bind erfolgreich."))
             {
-                return Task.FromResult(BuildResponse(false, options, server, searchBase, steps));
+                return BuildResponse(false, options, server, searchBase, steps);
             }
 
             if (!TryStep(
@@ -81,7 +97,7 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
                 () => ProbeSearchBase(activeConnection, searchBase),
                 "SearchBase ist lesbar."))
             {
-                return Task.FromResult(BuildResponse(false, options, server, searchBase, steps));
+                return BuildResponse(false, options, server, searchBase, steps);
             }
 
             if (!string.IsNullOrWhiteSpace(groupPattern))
@@ -92,7 +108,7 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
                     () => ProbeGroupPattern(activeConnection, searchBase, groupPattern, usePaging: false),
                     "Gruppensuche ohne Paging erfolgreich."))
                 {
-                    return Task.FromResult(BuildResponse(false, options, server, searchBase, steps));
+                    return BuildResponse(false, options, server, searchBase, steps);
                 }
 
                 if (options.UsePaging)
@@ -118,7 +134,7 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
             }
         }
 
-        return Task.FromResult(BuildResponse(steps.All(step => step.Success), options, server, searchBase, steps));
+        return BuildResponse(steps.All(step => step.Success), options, server, searchBase, steps);
     }
 
     private LdapConnection CreateConnection(string server, LdapOptions options)
@@ -169,6 +185,40 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
         return string.IsNullOrWhiteSpace(options.BindDn)
             ? null
             : new NetworkCredential(options.BindDn, options.BindPassword);
+    }
+
+    private static string ResolveServerAddresses(string server)
+    {
+        var addresses = Dns.GetHostAddresses(server);
+        if (addresses.Length == 0)
+        {
+            throw new InvalidOperationException("DNS hat keine Adresse fuer den LDAP-Server geliefert.");
+        }
+
+        var shownAddresses = addresses
+            .Take(6)
+            .Select(address => address.ToString())
+            .ToList();
+        var suffix = addresses.Length > shownAddresses.Count ? " ..." : "";
+        return string.Join(", ", shownAddresses) + suffix;
+    }
+
+    private static async Task<string> ProbeTcpPortAsync(string server, int port, CancellationToken cancellationToken)
+    {
+        using var client = new TcpClient();
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(5));
+
+        try
+        {
+            await client.ConnectAsync(server, port, timeout.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException($"TCP-Verbindung zu {server}:{port} nach 5 Sekunden abgebrochen.");
+        }
+
+        return $"TCP {server}:{port} ist erreichbar.";
     }
 
     private static void ProbeSearchBase(LdapConnection connection, string searchBase)
@@ -224,6 +274,26 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
         try
         {
             var detail = action();
+            steps.Add(new LdapTestStep(name, true, successMessage, detail));
+            return true;
+        }
+        catch (Exception ex)
+        {
+            steps.Add(new LdapTestStep(name, false, FriendlyMessage(ex), DiagnosticDetail(ex)));
+            return false;
+        }
+    }
+
+    private static async Task<bool> TryStepAsync(
+        string name,
+        List<LdapTestStep> steps,
+        Func<CancellationToken, Task<string>> action,
+        string successMessage,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var detail = await action(cancellationToken);
             steps.Add(new LdapTestStep(name, true, successMessage, detail));
             return true;
         }
