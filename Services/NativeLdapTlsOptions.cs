@@ -1,5 +1,3 @@
-using AdGroupUserCompare.Options;
-
 namespace AdGroupUserCompare.Services;
 
 internal static class NativeLdapTlsOptions
@@ -7,9 +5,9 @@ internal static class NativeLdapTlsOptions
     private const string CaCertificatesPath = "/etc/ssl/certs/ca-certificates.crt";
     private static readonly object Sync = new();
 
-    public static void Apply(LdapOptions options)
+    public static void Apply(bool useSsl, bool useStartTls, bool verifyCertificate)
     {
-        if (!options.UseSsl && !options.UseStartTls)
+        if (!useSsl && !useStartTls)
         {
             return;
         }
@@ -17,7 +15,7 @@ internal static class NativeLdapTlsOptions
         lock (Sync)
         {
             Environment.SetEnvironmentVariable("LDAPTLS_CACERT", CaCertificatesPath);
-            Environment.SetEnvironmentVariable("LDAPTLS_REQCERT", options.VerifyCertificate ? "demand" : "never");
+            Environment.SetEnvironmentVariable("LDAPTLS_REQCERT", verifyCertificate ? "demand" : "never");
         }
     }
 }

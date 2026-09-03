@@ -33,9 +33,9 @@ public sealed class LdapAdGroupLookupService(LdapSettingsStore settings, ILogger
         }
 
         ValidateBindConfiguration();
-        ValidateTransportConfiguration();
+        var endpoint = LdapEndpointResolver.Resolve(server, _options.Port, _options.UseSsl, _options.UseStartTls);
 
-        using var connection = CreateConnection(server);
+        using var connection = CreateConnection(endpoint);
         var groups = FindGroups(connection, searchBase, request.GroupPattern, cancellationToken)
             .OrderBy(group => group.Name, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
@@ -70,11 +70,11 @@ public sealed class LdapAdGroupLookupService(LdapSettingsStore settings, ILogger
             userCount));
     }
 
-    private LdapConnection CreateConnection(string server)
+    private LdapConnection CreateConnection(LdapEndpoint endpoint)
     {
-        NativeLdapTlsOptions.Apply(_options);
+        NativeLdapTlsOptions.Apply(endpoint.UseSsl, endpoint.UseStartTls, _options.VerifyCertificate);
 
-        var identifier = new LdapDirectoryIdentifier(server, _options.Port, fullyQualifiedDnsHostName: false, connectionless: false);
+        var identifier = new LdapDirectoryIdentifier(endpoint.Server, endpoint.Port, fullyQualifiedDnsHostName: false, connectionless: false);
         var connection = new LdapConnection(identifier)
         {
             AuthType = string.IsNullOrWhiteSpace(_options.BindDn) ? AuthType.Anonymous : AuthType.Basic,
@@ -83,9 +83,9 @@ public sealed class LdapAdGroupLookupService(LdapSettingsStore settings, ILogger
 
         connection.SessionOptions.ProtocolVersion = 3;
         ConfigureCertificateValidation(connection);
-        connection.SessionOptions.SecureSocketLayer = _options.UseSsl;
+        connection.SessionOptions.SecureSocketLayer = endpoint.UseSsl;
         connection.SessionOptions.ReferralChasing = ReferralChasingOptions.None;
-        StartTransportLayerSecurity(connection);
+        StartTransportLayerSecurity(connection, endpoint.UseStartTls);
 
         var credential = CreateCredential();
         connection.Credential = credential;
@@ -111,9 +111,9 @@ public sealed class LdapAdGroupLookupService(LdapSettingsStore settings, ILogger
             : new NetworkCredential(_options.BindDn, _options.BindPassword);
     }
 
-    private void StartTransportLayerSecurity(LdapConnection connection)
+    private static void StartTransportLayerSecurity(LdapConnection connection, bool useStartTls)
     {
-        if (_options.UseStartTls)
+        if (useStartTls)
         {
             connection.SessionOptions.StartTransportLayerSecurity(new DirectoryControlCollection());
         }
@@ -140,34 +140,16 @@ public sealed class LdapAdGroupLookupService(LdapSettingsStore settings, ILogger
         }
     }
 
-    private void ValidateTransportConfiguration()
-    {
-        if (_options.UseSsl && _options.UseStartTls)
-        {
-            throw new InvalidOperationException("AD_USE_SSL und AD_USE_START_TLS duerfen nicht gleichzeitig aktiv sein. Nutze entweder LDAPS auf Port 636 oder StartTLS auf Port 389.");
-        }
-
-        if (_options.UseSsl && _options.Port == 389)
-        {
-            throw new InvalidOperationException("LDAPS ist aktiv, aber Port 389 ist gesetzt. Nutze fuer LDAPS Port 636 oder fuer Port 389 StartTLS.");
-        }
-
-        if (_options.UseStartTls && _options.Port == 636)
-        {
-            throw new InvalidOperationException("StartTLS ist aktiv, aber Port 636 ist gesetzt. Nutze fuer StartTLS Port 389 oder fuer Port 636 LDAPS.");
-        }
-    }
-
     private List<GroupEntry> FindGroups(LdapConnection connection, string searchBase, string groupPattern, CancellationToken cancellationToken)
     {
         var ldapPattern = EscapeLdapFilterValue(groupPattern);
-        var filter = $"(&(objectClass=group)(name={ldapPattern}))";
-        var request = new SearchRequest(searchBase, filter, SearchScope.Subtree, "distinguishedName", "name");
+        var filter = $"(&(objectClass=group)(cn={ldapPattern}))";
+        var request = new SearchRequest(searchBase, filter, SearchScope.Subtree, "distinguishedName", "cn", "name");
 
         return ExecutePagedSearch(connection, request, cancellationToken)
             .Select(entry => new GroupEntry(
                 GetString(entry, "distinguishedName"),
-                GetString(entry, "name")))
+                FirstNonEmpty(GetString(entry, "cn"), GetString(entry, "name"))))
             .Where(group => !string.IsNullOrWhiteSpace(group.DistinguishedName) && !string.IsNullOrWhiteSpace(group.Name))
             .ToList();
     }

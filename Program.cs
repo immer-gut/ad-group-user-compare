@@ -3,6 +3,7 @@ using AdGroupUserCompare.Options;
 using AdGroupUserCompare.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using System.Reflection;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -48,9 +49,14 @@ builder.Services.AddScoped<IAdGroupLookupService, LdapAdGroupLookupService>();
 builder.Services.AddScoped<ILdapDiagnosticService, LdapDiagnosticService>();
 
 var app = builder.Build();
+var appVersion = Assembly.GetExecutingAssembly()
+    .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+    .InformationalVersion.Split('+', 2)[0] ?? "unbekannt";
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
+
+app.MapGet("/api/version", () => Results.Ok(new { version = appVersion }));
 
 app.MapGet("/api/config", (LdapSettingsStore settings) =>
 {
@@ -62,14 +68,17 @@ app.MapPost("/api/config", async (
     LdapSettingsStore settings,
     CancellationToken cancellationToken) =>
 {
-    if (request.UseSsl && request.UseStartTls)
+    try
     {
-        return Results.BadRequest(new { error = "SSL und StartTLS duerfen nicht gleichzeitig aktiv sein." });
+        var endpoint = LdapEndpointResolver.Resolve(request.Server, request.Port, request.UseSsl, request.UseStartTls);
+        request.Server = endpoint.Server;
+        request.Port = endpoint.Port;
+        request.UseSsl = endpoint.UseSsl;
+        request.UseStartTls = endpoint.UseStartTls;
     }
-
-    if (request.Port is < 1 or > 65535)
+    catch (InvalidOperationException ex)
     {
-        return Results.BadRequest(new { error = "LDAP-Port muss zwischen 1 und 65535 liegen." });
+        return Results.BadRequest(new { error = ex.Message });
     }
 
     await settings.SaveAsync(request, cancellationToken);

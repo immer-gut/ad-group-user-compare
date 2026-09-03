@@ -15,6 +15,7 @@ Die App ist die Linux-/Docker-Portierung des WPF-Tools `ad-group-user-exporter`:
 - sichtbares Ergebnis als CSV exportieren
 - zwei Benutzer aus dem geladenen Ergebnis vergleichen
 - LDAP-Testdialog fuer Server, Bind, SearchBase und Gruppenmuster
+- sichtbare Anwendungsversion im Kopfbereich
 - Docker- und Portainer-Stack fuer Ubuntu/Linux
 
 ## Konfiguration
@@ -26,7 +27,7 @@ Werte, die im LDAP-Testdialog gespeichert werden, liegen im Container-Volume unt
 | --- | --- | --- |
 | `AD_GROUP_USER_COMPARE_PORT` | Host-Port fuer Docker/Portainer | `3003` |
 | `AD_SETTINGS_PATH` oder `Ad__SettingsPath` | Speicherpfad fuer LDAP-Dialogwerte | `/app/data/ad-settings.json` |
-| `AD_LDAP_SERVER` oder `Ad__Server` | Domain Controller oder LDAP-Host | `dc01.example.local` |
+| `AD_LDAP_SERVER` oder `Ad__Server` | Domain Controller, LDAP-Host oder URL | `ldaps://dc01.example.local:636` |
 | `AD_LDAP_PORT` oder `Ad__Port` | LDAP-Port | `636` fuer LDAPS, `389` fuer StartTLS/LDAP |
 | `AD_USE_SSL` oder `Ad__UseSsl` | LDAPS aktivieren | `true` |
 | `AD_USE_START_TLS` oder `Ad__UseStartTls` | StartTLS auf Port 389 aktivieren | `false` |
@@ -109,6 +110,7 @@ Optional fuer eine interne AD-CA:
 - Der Port nutzt `System.DirectoryServices.Protocols` und spricht LDAP direkt.
 - In den meisten Umgebungen ist ein eigener LDAP-Lesebenutzer sinnvoll.
 - Im Dialog `LDAP testen` koennen Server, Port, SSL/StartTLS, Zertifikatspruefung, SearchBase, Gruppenmuster, Bind-DN, Bind-Passwort und Paging getestet und gespeichert werden.
+- Wie im Ticketsystem kann der Server als `ldaps://host:636` oder `ldap://host:389` eingegeben werden. Schema und URL-Port haben Vorrang und werden beim Speichern in Host, Port und TLS-Modus normalisiert.
 - Portainer-Environment-Werte muessen nicht geloescht werden. Sie bleiben Start-/Fallbackwerte, gespeicherte Dialogwerte haben danach Vorrang.
 - Das Bind-Passwort wird nicht im Browser angezeigt. Beim Speichern bleibt ein vorhandenes gespeichertes Passwort erhalten, wenn das Passwortfeld leer bleibt.
 - Wenn kein Passwort gespeichert ist und das Passwortfeld leer bleibt, kann weiterhin `AD_BIND_PASSWORD` aus Portainer als Fallback genutzt werden.
@@ -132,6 +134,7 @@ dotnet build
 ```
 
 Die Browserdateien liegen unter `wwwroot`, die LDAP-Logik unter `Services/LdapAdGroupLookupService.cs`.
+Die im Kopfbereich angezeigte Version stammt aus `AdGroupUserCompare.csproj` und wird ueber `GET /api/version` geladen.
 
 ## Projektdokumentation
 

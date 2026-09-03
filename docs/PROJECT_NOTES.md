@@ -13,6 +13,8 @@ AD Group User Compare ist eine Docker-faehige Web-App fuer Ubuntu/Portainer. Sie
 - **Laufzeitkonfiguration:** Der LDAP-Testdialog kann LDAP-Werte testen und in `/app/data/ad-settings.json` speichern. Gespeicherte Werte haben Vorrang vor Portainer-Environment-Defaults.
 - **Zertifikatspruefung:** LDAPS/StartTLS prueft Server-Zertifikate standardmaessig. Fuer Diagnosefaelle kann die Pruefung im Testdialog oder per `AD_VERIFY_CERTIFICATE=false` deaktiviert werden.
 - **Interne CA:** Optional kann `AD_CA_CERT_PATH` auf eine gemountete CA-Datei zeigen; der Container importiert sie beim Start in den Linux-Truststore und setzt OpenLDAP-TLS-Defaults.
+- **Ticketsystem-Muster:** `ldap://`- und `ldaps://`-Server-URLs werden wie in der funktionierenden `ldap3`-Anbindung auf Host, Port und TLS-Modus normalisiert; StartTLS erfolgt vor dem Bind.
+- **Versionsanzeige:** Die Website liest die Assembly-Version ueber `GET /api/version`; die Versionsquelle ist `AdGroupUserCompare.csproj`.
 - **Keine Secrets im Repo:** LDAP-Passwoerter gehoeren in Portainer-Environment-Variablen oder lokale `.env`, nicht in Git. Interne Zertifikats- und Schluesseldateien werden ebenfalls ignoriert und nur zur Laufzeit gemountet.
 
 ## Grenzen

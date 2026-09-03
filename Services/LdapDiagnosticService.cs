@@ -18,10 +18,20 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
         cancellationToken.ThrowIfCancellationRequested();
 
         var options = BuildTestOptions(request);
+        var steps = new List<LdapTestStep>();
+        try
+        {
+            LdapEndpointResolver.Apply(options, LdapEndpointResolver.Resolve(options));
+        }
+        catch (InvalidOperationException ex)
+        {
+            steps.Add(new LdapTestStep("Konfiguration", false, ex.Message, "Pruefe LDAP-Server-URL, Port und TLS-Auswahl."));
+            return BuildResponse(false, options, options.Server, options.SearchBase, steps);
+        }
+
         var server = FirstNonEmpty(options.Server);
         var searchBase = FirstNonEmpty(options.SearchBase);
         var groupPattern = FirstNonEmpty(request.GroupPattern, options.DefaultGroupPattern);
-        var steps = new List<LdapTestStep>();
 
         if (string.IsNullOrWhiteSpace(server))
         {
@@ -36,11 +46,6 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
         }
 
         if (!ValidateBindConfiguration(options, steps))
-        {
-            return BuildResponse(false, options, server, searchBase, steps);
-        }
-
-        if (!ValidateTransportConfiguration(options, steps))
         {
             return BuildResponse(false, options, server, searchBase, steps);
         }
@@ -153,7 +158,7 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
 
     private LdapConnection CreateConnection(string server, LdapOptions options)
     {
-        NativeLdapTlsOptions.Apply(options);
+        NativeLdapTlsOptions.Apply(options.UseSsl, options.UseStartTls, options.VerifyCertificate);
 
         var identifier = new LdapDirectoryIdentifier(server, options.Port, fullyQualifiedDnsHostName: false, connectionless: false);
         var connection = new LdapConnection(identifier)
@@ -332,7 +337,7 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
     {
         var request = new SearchRequest(
             searchBase,
-            $"(&(objectClass=group)(name={EscapeLdapFilterValue(groupPattern)}))",
+            $"(&(objectClass=group)(cn={EscapeLdapFilterValue(groupPattern)}))",
             SearchScope.Subtree,
             "distinguishedName",
             "name");
@@ -497,41 +502,6 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
         }
         options.UsePaging = request.UsePaging ?? options.UsePaging;
         return options;
-    }
-
-    private static bool ValidateTransportConfiguration(LdapOptions options, List<LdapTestStep> steps)
-    {
-        if (options.UseSsl && options.UseStartTls)
-        {
-            steps.Add(new LdapTestStep(
-                "Konfiguration",
-                false,
-                "TLS-Konfiguration widerspruechlich.",
-                "AD_USE_SSL und AD_USE_START_TLS duerfen nicht gleichzeitig aktiv sein. Nutze entweder LDAPS auf Port 636 oder StartTLS auf Port 389."));
-            return false;
-        }
-
-        if (options.UseSsl && options.Port == 389)
-        {
-            steps.Add(new LdapTestStep(
-                "Konfiguration",
-                false,
-                "LDAPS-Port passt nicht.",
-                "LDAPS / SSL ist aktiv, aber Port 389 ist gesetzt. Nutze fuer LDAPS Port 636 oder fuer Port 389 StartTLS."));
-            return false;
-        }
-
-        if (options.UseStartTls && options.Port == 636)
-        {
-            steps.Add(new LdapTestStep(
-                "Konfiguration",
-                false,
-                "StartTLS-Port passt nicht.",
-                "StartTLS ist aktiv, aber Port 636 ist gesetzt. Nutze fuer StartTLS Port 389 oder fuer Port 636 LDAPS."));
-            return false;
-        }
-
-        return true;
     }
 
     private static string FriendlyMessage(Exception ex)

@@ -9,7 +9,10 @@
 <body>
   <header class="app-header">
     <div>
-      <h1>AD Group User Compare</h1>
+      <div class="app-title-row">
+        <h1>AD Group User Compare</h1>
+        <span id="appVersion" class="app-version">Version wird geladen...</span>
+      </div>
       <p id="connectionSummary">LDAP-Konfiguration wird geladen...</p>
     </div>
     <button id="themeButton" class="icon-button" type="button" title="Theme umschalten" aria-label="Theme umschalten">◐</button>
@@ -37,8 +40,8 @@
           <input id="searchBase" name="searchBase" autocomplete="off" placeholder="OU=Groups,DC=example,DC=local">
         </label>
         <label>
-          <span>LDAP-Server</span>
-          <input id="server" name="server" autocomplete="off" placeholder="dc01.example.local">
+          <span>LDAP-Server / URL</span>
+          <input id="server" name="server" autocomplete="off" placeholder="ldaps://dc01.example.local:636">
         </label>
         <label class="check-row">
           <input id="onlyEnabled" name="onlyEnabled" type="checkbox" checked>
@@ -105,8 +108,8 @@
       </header>
       <div class="test-config settings-grid" id="ldapTestConfig">
         <label>
-          <span>LDAP-Server</span>
-          <input id="ldapServerInput" autocomplete="off" placeholder="dc01.example.local">
+          <span>LDAP-Server / URL</span>
+          <input id="ldapServerInput" autocomplete="off" placeholder="ldaps://dc01.example.local:636">
         </label>
         <label>
           <span>Port</span>

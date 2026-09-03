@@ -56,6 +56,7 @@ const elements = {
   compare: document.querySelector("#compareButton"),
   clearCompare: document.querySelector("#clearCompareButton"),
   toast: document.querySelector("#toast"),
+  appVersion: document.querySelector("#appVersion"),
   connectionSummary: document.querySelector("#connectionSummary"),
   themeButton: document.querySelector("#themeButton"),
   ldapTestDialog: document.querySelector("#ldapTestDialog"),
@@ -82,6 +83,7 @@ init();
 
 function init() {
   loadTheme();
+  loadVersion();
   loadConfig();
   elements.form.addEventListener("submit", search);
   elements.groupPattern.addEventListener("input", updateGroupPatternButton);
@@ -104,6 +106,20 @@ function init() {
   updateGroupPatternButton();
   updateFilterClearButton();
   renderRows([]);
+}
+
+async function loadVersion() {
+  try {
+    const response = await fetch("/api/version");
+    const body = await readJsonResponse(response, "Version konnte nicht geladen werden.");
+    if (!response.ok || !body.version) {
+      throw new Error(body.error ?? "Version konnte nicht geladen werden.");
+    }
+
+    elements.appVersion.textContent = `Version ${body.version}`;
+  } catch {
+    elements.appVersion.textContent = "Version unbekannt";
+  }
 }
 
 async function loadConfig() {

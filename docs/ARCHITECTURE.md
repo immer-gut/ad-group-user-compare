@@ -18,10 +18,12 @@ Active Directory via LDAPS or LDAP+StartTLS
 ## Komponenten
 
 - `Program.cs`: API-Endpunkte, Konfiguration und Static-File-Hosting.
+- `GET /api/version`: Liefert die in der Assembly hinterlegte Anwendungsversion fuer den Kopfbereich der Website.
 - `wwwroot/`: Browseroberflaeche, Filter, CSV-Export und Uservergleich-Interaktion.
 - `Models/`: DTOs fuer Suche, Ergebnisse und Vergleich.
 - `Services/LdapAdGroupLookupService.cs`: LDAP-Suche, TLS/LDAPS-Verbindungsaufbau inklusive optionaler Zertifikatspruefung, Gruppenauflistung, rekursive Member-Aufloesung und User-Attribut-Mapping.
 - `Services/LdapDiagnosticService.cs`: Schrittweiser LDAP-Test fuer DNS, TCP, TLS, Bind, SearchBase und Gruppenmuster.
+- `Services/LdapEndpointResolver.cs`: Normalisiert Host-Eingaben sowie `ldap://`-/`ldaps://`-URLs in Server, Port und TLS-Modus.
 - `Services/NativeLdapTlsOptions.cs`: Uebergibt Zertifikatspruefung und CA-Trust an die native OpenLDAP-Bibliothek.
 - `Services/LdapSettingsStore.cs`: Laufzeitkonfiguration aus Environment-Defaults plus gespeicherten Dialogwerten.
 - `Services/ResultComparisonService.cs`: Vergleich zweier Benutzer innerhalb des geladenen Ergebnisses.
@@ -36,6 +38,7 @@ Active Directory via LDAPS or LDAP+StartTLS
 5. `userAccountControl` bestimmt, ob ein Benutzer aktiv ist.
 
 Der Bind nutzt fuer gehaertete Domain Controller standardmaessig LDAPS. Alternativ kann StartTLS auf Port 389 aktiviert werden. Server-Zertifikate werden standardmaessig geprueft; fuer Diagnose oder interne Testnetze kann die Pruefung deaktiviert werden.
+Die Verbindungsreihenfolge entspricht dem bewaehrten Ticketsystem-Muster: bei StartTLS erst Verbindung oeffnen und TLS starten, danach explizit binden; bei LDAPS wird direkt die TLS-Verbindung aufgebaut und gebunden.
 
 ## Deployment
 

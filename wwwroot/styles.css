@@ -148,9 +148,24 @@ label span {
 }
 
 .app-header h1 {
-  margin: 0 0 4px;
+  margin: 0;
   font-size: 22px;
   letter-spacing: 0;
+}
+
+.app-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+
+.app-version {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .app-header p {

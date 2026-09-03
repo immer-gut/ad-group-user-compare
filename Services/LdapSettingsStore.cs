@@ -40,12 +40,13 @@ public sealed class LdapSettingsStore
 
     public async Task<LdapOptions> SaveAsync(LdapSettingsRequest request, CancellationToken cancellationToken)
     {
+        var endpoint = LdapEndpointResolver.Resolve(request.Server, request.Port, request.UseSsl, request.UseStartTls);
         var saved = new SavedLdapSettings
         {
-            Server = request.Server?.Trim() ?? "",
-            Port = NormalizePort(request.Port),
-            UseSsl = request.UseSsl,
-            UseStartTls = request.UseStartTls,
+            Server = endpoint.Server,
+            Port = endpoint.Port,
+            UseSsl = endpoint.UseSsl,
+            UseStartTls = endpoint.UseStartTls,
             VerifyCertificate = request.VerifyCertificate,
             SearchBase = request.SearchBase?.Trim() ?? "",
             DefaultGroupPattern = request.GroupPattern?.Trim() ?? "",
@@ -76,11 +77,21 @@ public sealed class LdapSettingsStore
     public AppConfigResponse BuildResponse()
     {
         var value = Current;
+        LdapEndpoint endpoint;
+        try
+        {
+            endpoint = LdapEndpointResolver.Resolve(value);
+        }
+        catch (InvalidOperationException)
+        {
+            endpoint = new LdapEndpoint(value.Server, value.Port, value.UseSsl, value.UseStartTls);
+        }
+
         return new AppConfigResponse(
-            value.Server,
-            value.Port,
-            value.UseSsl,
-            value.UseStartTls,
+            endpoint.Server,
+            endpoint.Port,
+            endpoint.UseSsl,
+            endpoint.UseStartTls,
             value.VerifyCertificate,
             value.SearchBase,
             value.DefaultGroupPattern,
