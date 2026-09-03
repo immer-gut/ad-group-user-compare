@@ -1,4 +1,5 @@
 using System.DirectoryServices.Protocols;
+using System.Security.Authentication;
 
 namespace AdGroupUserCompare.Services;
 
@@ -20,6 +21,7 @@ internal static class LdapExceptionFormatter
                 91 => "LDAP-Verbindung konnte nicht hergestellt werden.",
                 _ => $"LDAP-Fehler {ldapException.ErrorCode}: {ldapException.Message}"
             },
+            AuthenticationException => "TLS-Handshake fehlgeschlagen. Pruefe, ob auf diesem Port wirklich LDAPS laeuft und ob Zertifikat/TLS-Version passen.",
             TlsOperationException => "StartTLS fehlgeschlagen. Pruefe Port 389, Zertifikat und ob der Domain Controller StartTLS anbietet.",
             DirectoryOperationException directoryOperationException => $"LDAP-Operation fehlgeschlagen: {directoryOperationException.Message}",
             _ => ex.Message

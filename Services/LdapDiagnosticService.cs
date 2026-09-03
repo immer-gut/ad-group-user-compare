@@ -1,6 +1,9 @@
 using System.DirectoryServices.Protocols;
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 using AdGroupUserCompare.Models;
 using AdGroupUserCompare.Options;
 
@@ -59,6 +62,17 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
             token => ProbeTcpPortAsync(server, options.Port, token),
             "TCP-Port erreichbar.",
             cancellationToken))
+        {
+            return BuildResponse(false, options, server, searchBase, steps);
+        }
+
+        if (options.UseSsl &&
+            !await TryStepAsync(
+                "TLS-Handshake",
+                steps,
+                token => ProbeLdapsHandshakeAsync(server, options.Port, options.VerifyCertificate, token),
+                "LDAPS-TLS-Handshake erfolgreich.",
+                cancellationToken))
         {
             return BuildResponse(false, options, server, searchBase, steps);
         }
@@ -219,6 +233,84 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
         }
 
         return $"TCP {server}:{port} ist erreichbar.";
+    }
+
+    private static async Task<string> ProbeLdapsHandshakeAsync(
+        string server,
+        int port,
+        bool verifyCertificate,
+        CancellationToken cancellationToken)
+    {
+        using var client = new TcpClient();
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(8));
+
+        try
+        {
+            await client.ConnectAsync(server, port, timeout.Token);
+            var certificateErrors = SslPolicyErrors.None;
+            X509Certificate2? serverCertificate = null;
+            using var sslStream = new SslStream(
+                client.GetStream(),
+                leaveInnerStreamOpen: false,
+                (_, certificate, _, errors) =>
+                {
+                    certificateErrors = errors;
+                    if (certificate is not null)
+                    {
+                        serverCertificate = certificate as X509Certificate2 ?? new X509Certificate2(certificate);
+                    }
+
+                    return !verifyCertificate || errors == SslPolicyErrors.None;
+                });
+
+            await sslStream.AuthenticateAsClientAsync(new SslClientAuthenticationOptions
+            {
+                TargetHost = server,
+                EnabledSslProtocols = SslProtocols.None,
+                CertificateRevocationCheckMode = X509RevocationMode.NoCheck
+            }, timeout.Token);
+
+            return BuildTlsDetail(sslStream, serverCertificate, certificateErrors, verifyCertificate);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException($"TLS-Handshake zu {server}:{port} nach 8 Sekunden abgebrochen.");
+        }
+    }
+
+    private static string BuildTlsDetail(
+        SslStream sslStream,
+        X509Certificate2? certificate,
+        SslPolicyErrors certificateErrors,
+        bool verifyCertificate)
+    {
+        var parts = new List<string>
+        {
+            $"Protokoll {sslStream.SslProtocol}"
+        };
+
+        if (certificate is not null)
+        {
+            parts.Add($"Zertifikat {certificate.Subject}");
+            parts.Add($"Issuer {certificate.Issuer}");
+            parts.Add($"Gueltig bis {certificate.NotAfter:yyyy-MM-dd HH:mm}");
+        }
+
+        if (certificateErrors == SslPolicyErrors.None)
+        {
+            parts.Add("Zertifikatsstatus ok");
+        }
+        else if (verifyCertificate)
+        {
+            parts.Add($"Zertifikatsfehler {certificateErrors}");
+        }
+        else
+        {
+            parts.Add($"Zertifikatsfehler ignoriert: {certificateErrors}");
+        }
+
+        return string.Join(" | ", parts);
     }
 
     private static void ProbeSearchBase(LdapConnection connection, string searchBase)
