@@ -1,7 +1,6 @@
-using System.DirectoryServices.Protocols;
-using System.Net;
 using AdGroupUserCompare.Models;
 using AdGroupUserCompare.Options;
+using Novell.Directory.Ldap;
 
 namespace AdGroupUserCompare.Services;
 
@@ -10,10 +9,9 @@ public sealed class LdapAdGroupLookupService(LdapSettingsStore settings, ILogger
 {
     private readonly LdapOptions _options = settings.Current;
 
-    public Task<AdSearchResponse> SearchAsync(AdSearchRequest request, CancellationToken cancellationToken)
+    public async Task<AdSearchResponse> SearchAsync(AdSearchRequest request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-
         if (string.IsNullOrWhiteSpace(request.GroupPattern))
         {
             throw new InvalidOperationException("Gruppenmuster fehlt.");
@@ -21,7 +19,6 @@ public sealed class LdapAdGroupLookupService(LdapSettingsStore settings, ILogger
 
         var server = FirstNonEmpty(request.Server, _options.Server);
         var searchBase = FirstNonEmpty(request.SearchBase, _options.SearchBase);
-
         if (string.IsNullOrWhiteSpace(server))
         {
             throw new InvalidOperationException("LDAP-Server fehlt. Setze Ad__Server oder AD_LDAP_SERVER.");
@@ -34,19 +31,23 @@ public sealed class LdapAdGroupLookupService(LdapSettingsStore settings, ILogger
 
         ValidateBindConfiguration();
         var endpoint = LdapEndpointResolver.Resolve(server, _options.Port, _options.UseSsl, _options.UseStartTls);
+        using var connection = new ManagedLdapClient(endpoint, _options.VerifyCertificate, TimeSpan.FromSeconds(45));
+        await connection.ConnectAsync(endpoint, cancellationToken);
+        if (endpoint.UseStartTls)
+        {
+            await connection.StartTlsAsync(cancellationToken);
+        }
 
-        using var connection = CreateConnection(endpoint);
-        var groups = FindGroups(connection, searchBase, request.GroupPattern, cancellationToken)
+        await connection.BindAsync(_options.BindDn, _options.BindPassword, cancellationToken);
+        var groups = (await FindGroupsAsync(connection, searchBase, request.GroupPattern, cancellationToken))
             .OrderBy(group => group.Name, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
-
         var results = new List<AdUserResult>();
         var seenUsers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var group in groups)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            ResolveGroupMembers(
+            await ResolveGroupMembersAsync(
                 connection,
                 rootGroupName: group.Name,
                 groupDn: group.DistinguishedName,
@@ -63,68 +64,11 @@ public sealed class LdapAdGroupLookupService(LdapSettingsStore settings, ILogger
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Count();
 
-        return Task.FromResult(new AdSearchResponse(
+        return new AdSearchResponse(
             results,
             groups.Select(group => group.Name).ToList(),
             groups.Count,
-            userCount));
-    }
-
-    private LdapConnection CreateConnection(LdapEndpoint endpoint)
-    {
-        NativeLdapTlsOptions.Apply(endpoint.UseSsl, endpoint.UseStartTls, _options.VerifyCertificate);
-
-        var identifier = new LdapDirectoryIdentifier(endpoint.Server, endpoint.Port, fullyQualifiedDnsHostName: false, connectionless: false);
-        var connection = new LdapConnection(identifier)
-        {
-            AuthType = string.IsNullOrWhiteSpace(_options.BindDn) ? AuthType.Anonymous : AuthType.Basic,
-            Timeout = TimeSpan.FromSeconds(45)
-        };
-
-        connection.SessionOptions.ProtocolVersion = 3;
-        ConfigureCertificateValidation(connection);
-        connection.SessionOptions.SecureSocketLayer = endpoint.UseSsl;
-        connection.SessionOptions.ReferralChasing = ReferralChasingOptions.None;
-        StartTransportLayerSecurity(connection, endpoint.UseStartTls);
-
-        var credential = CreateCredential();
-        connection.Credential = credential;
-        BindConnection(connection, credential);
-        return connection;
-    }
-
-    private void BindConnection(LdapConnection connection, NetworkCredential? credential)
-    {
-        if (credential is null)
-        {
-            connection.Bind();
-            return;
-        }
-
-        connection.Bind(credential);
-    }
-
-    private NetworkCredential? CreateCredential()
-    {
-        return string.IsNullOrWhiteSpace(_options.BindDn)
-            ? null
-            : new NetworkCredential(_options.BindDn, _options.BindPassword);
-    }
-
-    private static void StartTransportLayerSecurity(LdapConnection connection, bool useStartTls)
-    {
-        if (useStartTls)
-        {
-            connection.SessionOptions.StartTransportLayerSecurity(new DirectoryControlCollection());
-        }
-    }
-
-    private void ConfigureCertificateValidation(LdapConnection connection)
-    {
-        if (!_options.VerifyCertificate)
-        {
-            connection.SessionOptions.VerifyServerCertificate = (_, _) => true;
-        }
+            userCount);
     }
 
     private void ValidateBindConfiguration()
@@ -140,22 +84,32 @@ public sealed class LdapAdGroupLookupService(LdapSettingsStore settings, ILogger
         }
     }
 
-    private List<GroupEntry> FindGroups(LdapConnection connection, string searchBase, string groupPattern, CancellationToken cancellationToken)
+    private async Task<List<GroupEntry>> FindGroupsAsync(
+        ManagedLdapClient connection,
+        string searchBase,
+        string groupPattern,
+        CancellationToken cancellationToken)
     {
-        var ldapPattern = EscapeLdapFilterValue(groupPattern);
-        var filter = $"(&(objectClass=group)(cn={ldapPattern}))";
-        var request = new SearchRequest(searchBase, filter, SearchScope.Subtree, "distinguishedName", "cn", "name");
+        var filter = $"(&(objectClass=group)(cn={EscapeLdapFilterValue(groupPattern)}))";
+        var entries = await connection.SearchAsync(
+            searchBase,
+            LdapConnection.ScopeSub,
+            filter,
+            ["distinguishedName", "cn", "name"],
+            _options.UsePaging,
+            _options.PageSize,
+            cancellationToken);
 
-        return ExecutePagedSearch(connection, request, cancellationToken)
+        return entries
             .Select(entry => new GroupEntry(
-                GetString(entry, "distinguishedName"),
+                FirstNonEmpty(GetString(entry, "distinguishedName"), entry.Dn),
                 FirstNonEmpty(GetString(entry, "cn"), GetString(entry, "name"))))
             .Where(group => !string.IsNullOrWhiteSpace(group.DistinguishedName) && !string.IsNullOrWhiteSpace(group.Name))
             .ToList();
     }
 
-    private void ResolveGroupMembers(
-        LdapConnection connection,
+    private async Task ResolveGroupMembersAsync(
+        ManagedLdapClient connection,
         string rootGroupName,
         string groupDn,
         IReadOnlyList<string> path,
@@ -166,17 +120,15 @@ public sealed class LdapAdGroupLookupService(LdapSettingsStore settings, ILogger
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-
         if (!visitedGroups.Add(groupDn))
         {
             return;
         }
 
-        foreach (var memberDn in GetMemberDns(connection, groupDn))
+        foreach (var memberDn in await GetMemberDnsAsync(connection, groupDn, cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
-
-            var member = LoadDirectoryEntry(connection, memberDn);
+            var member = await LoadDirectoryEntryAsync(connection, memberDn, cancellationToken);
             if (member is null)
             {
                 logger.LogWarning("LDAP member not found: {MemberDn}", memberDn);
@@ -185,8 +137,8 @@ public sealed class LdapAdGroupLookupService(LdapSettingsStore settings, ILogger
 
             if (HasObjectClass(member, "group"))
             {
-                var nestedName = GetString(member, "name");
-                ResolveGroupMembers(
+                var nestedName = FirstNonEmpty(GetString(member, "cn"), GetString(member, "name"));
+                await ResolveGroupMembersAsync(
                     connection,
                     rootGroupName,
                     memberDn,
@@ -225,31 +177,30 @@ public sealed class LdapAdGroupLookupService(LdapSettingsStore settings, ILogger
                 enabled,
                 GetString(member, "department"),
                 GetString(member, "title"),
-                GetString(member, "distinguishedName")));
+                FirstNonEmpty(GetString(member, "distinguishedName"), member.Dn)));
         }
     }
 
-    private SearchResultEntry? LoadDirectoryEntry(LdapConnection connection, string distinguishedName)
+    private static async Task<LdapEntry?> LoadDirectoryEntryAsync(
+        ManagedLdapClient connection,
+        string distinguishedName,
+        CancellationToken cancellationToken)
     {
-        var request = new SearchRequest(
+        var entries = await connection.SearchAsync(
             distinguishedName,
+            LdapConnection.ScopeBase,
             "(objectClass=*)",
-            SearchScope.Base,
-            "objectClass",
-            "distinguishedName",
-            "name",
-            "sAMAccountName",
-            "displayName",
-            "mail",
-            "userAccountControl",
-            "department",
-            "title");
-
-        var response = (SearchResponse)connection.SendRequest(request);
-        return response.Entries.Count == 0 ? null : response.Entries[0];
+            ["objectClass", "distinguishedName", "cn", "name", "sAMAccountName", "displayName", "mail", "userAccountControl", "department", "title"],
+            usePaging: false,
+            pageSize: 1,
+            cancellationToken);
+        return entries.FirstOrDefault();
     }
 
-    private IReadOnlyList<string> GetMemberDns(LdapConnection connection, string groupDn)
+    private async Task<IReadOnlyList<string>> GetMemberDnsAsync(
+        ManagedLdapClient connection,
+        string groupDn,
+        CancellationToken cancellationToken)
     {
         var members = new List<string>();
         var rangeSize = Math.Max(1, _options.MemberRangeSize);
@@ -259,32 +210,36 @@ public sealed class LdapAdGroupLookupService(LdapSettingsStore settings, ILogger
         {
             var rangeEnd = rangeStart + rangeSize - 1;
             var attributeName = $"member;range={rangeStart}-{rangeEnd}";
-            var request = new SearchRequest(groupDn, "(objectClass=group)", SearchScope.Base, "member", attributeName);
-            var response = (SearchResponse)connection.SendRequest(request);
-
-            if (response.Entries.Count == 0)
+            var entries = await connection.SearchAsync(
+                groupDn,
+                LdapConnection.ScopeBase,
+                "(objectClass=group)",
+                ["member", attributeName],
+                usePaging: false,
+                pageSize: 1,
+                cancellationToken);
+            var entry = entries.FirstOrDefault();
+            if (entry is null)
             {
                 return members;
             }
 
-            var attributes = response.Entries[0].Attributes;
-            if (attributes.Contains("member"))
+            if (entry.Contains("member"))
             {
-                AddAttributeValues(attributes["member"], members);
+                AddAttributeValues(entry.Get("member"), members);
                 return members;
             }
 
-            var rangedAttributeName = attributes.AttributeNames
-                .Cast<string>()
-                .FirstOrDefault(name => name.StartsWith("member;range=", StringComparison.OrdinalIgnoreCase));
-
-            if (rangedAttributeName is null)
+            var rangedAttribute = entry.GetAttributeSet()
+                .Select(attribute => attribute.Value)
+                .FirstOrDefault(attribute => attribute.Name.StartsWith("member;range=", StringComparison.OrdinalIgnoreCase));
+            if (rangedAttribute is null)
             {
                 return members;
             }
 
-            AddAttributeValues(attributes[rangedAttributeName], members);
-            if (rangedAttributeName.EndsWith("-*", StringComparison.Ordinal))
+            AddAttributeValues(rangedAttribute, members);
+            if (rangedAttribute.Name.EndsWith("-*", StringComparison.Ordinal))
             {
                 return members;
             }
@@ -293,46 +248,9 @@ public sealed class LdapAdGroupLookupService(LdapSettingsStore settings, ILogger
         }
     }
 
-    private List<SearchResultEntry> ExecutePagedSearch(LdapConnection connection, SearchRequest request, CancellationToken cancellationToken)
+    private static void AddAttributeValues(LdapAttribute attribute, List<string> values)
     {
-        var results = new List<SearchResultEntry>();
-
-        if (!_options.UsePaging)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var response = (SearchResponse)connection.SendRequest(request);
-            results.AddRange(response.Entries.Cast<SearchResultEntry>());
-            return results;
-        }
-
-        var pageSize = Math.Max(1, _options.PageSize);
-        var pageControl = new PageResultRequestControl(pageSize);
-        request.Controls.Add(pageControl);
-
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var response = (SearchResponse)connection.SendRequest(request);
-            results.AddRange(response.Entries.Cast<SearchResultEntry>());
-
-            var responseControl = response.Controls
-                .OfType<PageResultResponseControl>()
-                .FirstOrDefault();
-
-            if (responseControl is null || responseControl.Cookie.Length == 0)
-            {
-                break;
-            }
-
-            pageControl.Cookie = responseControl.Cookie;
-        }
-
-        return results;
-    }
-
-    private static void AddAttributeValues(DirectoryAttribute attribute, List<string> values)
-    {
-        foreach (var value in attribute.GetValues(typeof(string)).Cast<string>())
+        foreach (var value in attribute.StringValueArray)
         {
             if (!string.IsNullOrWhiteSpace(value))
             {
@@ -341,33 +259,21 @@ public sealed class LdapAdGroupLookupService(LdapSettingsStore settings, ILogger
         }
     }
 
-    private static bool HasObjectClass(SearchResultEntry entry, string objectClass)
+    private static bool HasObjectClass(LdapEntry entry, string objectClass)
     {
-        if (!entry.Attributes.Contains("objectClass"))
-        {
-            return false;
-        }
-
-        return entry.Attributes["objectClass"]
-            .GetValues(typeof(string))
-            .Cast<string>()
+        return entry.Contains("objectClass") && entry.Get("objectClass").StringValueArray
             .Any(value => string.Equals(value, objectClass, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static bool IsUserEnabled(SearchResultEntry entry)
+    private static bool IsUserEnabled(LdapEntry entry)
     {
         var rawValue = GetString(entry, "userAccountControl");
         return !int.TryParse(rawValue, out var userAccountControl) || (userAccountControl & 0x2) == 0;
     }
 
-    private static string GetString(SearchResultEntry entry, string attributeName)
+    private static string GetString(LdapEntry entry, string attributeName)
     {
-        if (!entry.Attributes.Contains(attributeName) || entry.Attributes[attributeName].Count == 0)
-        {
-            return "";
-        }
-
-        return entry.Attributes[attributeName][0]?.ToString() ?? "";
+        return entry.Contains(attributeName) ? entry.Get(attributeName).StringValue ?? "" : "";
     }
 
     private static string EscapeLdapFilterValue(string value)

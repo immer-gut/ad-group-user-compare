@@ -32,7 +32,7 @@ Werte, die im LDAP-Testdialog gespeichert werden, liegen im Container-Volume unt
 | `AD_USE_SSL` oder `Ad__UseSsl` | LDAPS aktivieren | `true` |
 | `AD_USE_START_TLS` oder `Ad__UseStartTls` | StartTLS auf Port 389 aktivieren | `false` |
 | `AD_VERIFY_CERTIFICATE` oder `Ad__VerifyCertificate` | Server-Zertifikat bei LDAPS/StartTLS pruefen | `true` |
-| `AD_CA_CERT_PATH` | Optionaler Pfad zu einer gemounteten internen CA-Datei, die beim Containerstart fuer System und OpenLDAP vertraut wird | `/run/certs/ad-ca.crt` |
+| `AD_CA_CERT_PATH` | Optionaler Pfad zu einer gemounteten internen CA-Datei, die beim Containerstart im System-Truststore hinterlegt wird | `/run/certs/ad-ca.crt` |
 | `AD_SEARCH_BASE` oder `Ad__SearchBase` | Basis-DN fuer Gruppensuche | `OU=Groups,DC=example,DC=local` |
 | `AD_BIND_DN` oder `Ad__BindDn` | Bind-DN fuer LDAP | `CN=ldap-reader,OU=Service Accounts,DC=example,DC=local` |
 | `AD_BIND_PASSWORD` oder `Ad__BindPassword` | Passwort fuer LDAP-Bind | `change-me` |
@@ -107,7 +107,7 @@ Optional fuer eine interne AD-CA:
 ## AD-/LDAP-Hinweise
 
 - Linux-Container koennen das Windows-`ActiveDirectory`-PowerShell-Modul nicht verwenden.
-- Der Port nutzt `System.DirectoryServices.Protocols` und spricht LDAP direkt.
+- Der Port nutzt den verwalteten `Novell.Directory.Ldap.NETStandard`-Client und spricht LDAP direkt.
 - In den meisten Umgebungen ist ein eigener LDAP-Lesebenutzer sinnvoll.
 - Im Dialog `LDAP testen` koennen Server, Port, SSL/StartTLS, Zertifikatspruefung, SearchBase, Gruppenmuster, Bind-DN, Bind-Passwort und Paging getestet und gespeichert werden.
 - Wie im Ticketsystem kann der Server als `ldaps://host:636` oder `ldap://host:389` eingegeben werden. Schema und URL-Port haben Vorrang und werden beim Speichern in Host, Port und TLS-Modus normalisiert.
@@ -121,8 +121,8 @@ Optional fuer eine interne AD-CA:
 - `LDAPS / SSL` zusammen mit Port `389` ist normalerweise falsch. Der Dialog korrigiert das auf Port `636`; die API meldet diese Kombination als Konfigurationsfehler.
 - Der Container muss dem Zertifikat des Domain Controllers bzw. der internen CA vertrauen, sonst schlaegt LDAPS/StartTLS beim TLS-Aufbau fehl.
 - Bei `RemoteCertificateChainErrors` fehlt dem Container normalerweise die interne Root- oder Issuing-CA. Exportiere die CA als Base-64-codierte X.509-Datei und mounte sie z. B. nach `/run/certs/ad-ca.crt`; setze dann `AD_CA_CERT_PATH=/run/certs/ad-ca.crt`.
-- Der Container schreibt beim Start OpenLDAP-TLS-Defaults (`TLS_CACERT`, `TLS_REQCERT`), damit `System.DirectoryServices.Protocols` und die native LDAP-Bibliothek dieselbe Zertifikatslogik nutzen.
-- Falls die interne CA im Container noch nicht vertraut ist, kann die Zertifikatspruefung im Testdialog oder mit `AD_VERIFY_CERTIFICATE=false` deaktiviert werden. Das setzt fuer OpenLDAP `TLS_REQCERT=never` und sollte nur zur Diagnose oder in kontrollierten internen Netzen genutzt werden.
+- Falls die interne CA im Container noch nicht vertraut ist, kann die Zertifikatspruefung im Testdialog oder mit `AD_VERIFY_CERTIFICATE=false` deaktiviert werden. Der verwaltete TLS-Client akzeptiert das Serverzertifikat dann wie das Ticketsystem mit deaktivierter Pruefung; das sollte nur zur Diagnose oder in kontrollierten internen Netzen genutzt werden.
+- StartTLS folgt exakt der Reihenfolge des Ticketsystems: Verbindung auf Port 389 oeffnen, StartTLS aushandeln und erst danach mit dem Lesebenutzer binden.
 - Der Button `LDAP testen` prueft die Verbindung schrittweise inklusive DNS-Aufloesung, TCP-Port, LDAPS-TLS-Handshake mit Zertifikatsdetails, Bind, SearchBase und Gruppenmuster.
 - Wenn `Gruppenmuster ohne Paging` funktioniert, aber `Gruppenmuster mit Paging` fehlschlaegt, kann `AD_USE_PAGING=false` als Workaround gesetzt werden.
 - Der Vergleich betrachtet nur das aktuell geladene Ergebnis, nicht alle Gruppen eines Benutzers im gesamten AD.

@@ -1,11 +1,11 @@
-using System.DirectoryServices.Protocols;
-using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Net;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using AdGroupUserCompare.Models;
 using AdGroupUserCompare.Options;
+using Novell.Directory.Ldap;
 
 namespace AdGroupUserCompare.Services;
 
@@ -54,7 +54,7 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
             "Konfiguration",
             true,
             "Pflichtwerte vorhanden.",
-            $"{ProtocolName(options)} {server}:{options.Port}, SearchBase {searchBase}, Bind-DN {BindDnLabel(options)}, Passwort {BindPasswordLabel(options)}, Zertifikat {CertificateLabel(options)}, Paging {PagingLabel(options)}, Referrals aus"));
+            $"{ProtocolName(options)} {server}:{options.Port}, SearchBase {searchBase}, Bind-DN {BindDnLabel(options)}, Passwort {BindPasswordLabel(options)}, Zertifikat {CertificateLabel(options)}, Paging {PagingLabel(options)}, Managed-LDAP-Client, Referrals aus"));
 
         if (!TryStep("DNS", steps, () => ResolveServerAddresses(server), "LDAP-Servername aufgeloest."))
         {
@@ -82,130 +82,107 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
             return BuildResponse(false, options, server, searchBase, steps);
         }
 
-        LdapConnection? connection = null;
-        if (!TryStep(
+        var endpoint = new LdapEndpoint(server, options.Port, options.UseSsl, options.UseStartTls);
+        using var activeConnection = CreateConnection(endpoint, options);
+        if (!await TryStepAsync(
             "Verbindung",
             steps,
-            () =>
+            async token =>
             {
-                connection = CreateConnection(server, options);
-                return "LDAP-Client wurde initialisiert.";
+                await activeConnection.ConnectAsync(endpoint, token);
+                return $"LDAP-Verbindung zu {server}:{options.Port} wurde geoeffnet.";
             },
-            "Verbindungsaufbau vorbereitet."))
+            "LDAP-Verbindung geoeffnet.",
+            cancellationToken))
         {
             return BuildResponse(false, options, server, searchBase, steps);
         }
 
-        var activeConnection = connection ?? throw new InvalidOperationException("LDAP-Verbindung wurde nicht initialisiert.");
-        using (activeConnection)
-        {
-            if (options.UseStartTls &&
-                !TryStep("StartTLS", steps, () => StartTransportLayerSecurity(activeConnection), "StartTLS erfolgreich."))
-            {
-                return BuildResponse(false, options, server, searchBase, steps);
-            }
-
-            if (!TryStep("Bind", steps, () => BindConnection(activeConnection, options), "LDAP-Bind erfolgreich."))
-            {
-                return BuildResponse(false, options, server, searchBase, steps);
-            }
-
-            if (!TryStep(
-                "SearchBase",
+        if (options.UseStartTls &&
+            !await TryStepAsync(
+                "StartTLS",
                 steps,
-                () => ProbeSearchBase(activeConnection, searchBase),
-                "SearchBase ist lesbar."))
+                async token =>
+                {
+                    await activeConnection.StartTlsAsync(token);
+                    return "TLS ist auf der geoeffneten LDAP-Verbindung aktiv.";
+                },
+                "StartTLS erfolgreich.",
+                cancellationToken))
+        {
+            return BuildResponse(false, options, server, searchBase, steps);
+        }
+
+        if (!await TryStepAsync(
+            "Bind",
+            steps,
+            token => BindConnectionAsync(activeConnection, options, token),
+            "LDAP-Bind erfolgreich.",
+            cancellationToken))
+        {
+            return BuildResponse(false, options, server, searchBase, steps);
+        }
+
+        if (!await TryStepAsync(
+            "SearchBase",
+            steps,
+            token => ProbeSearchBaseAsync(activeConnection, searchBase, token),
+            "SearchBase ist lesbar.",
+            cancellationToken))
+        {
+            return BuildResponse(false, options, server, searchBase, steps);
+        }
+
+        if (!string.IsNullOrWhiteSpace(groupPattern))
+        {
+            if (!await TryStepAsync(
+                "Gruppenmuster ohne Paging",
+                steps,
+                token => ProbeGroupPatternAsync(activeConnection, searchBase, groupPattern, usePaging: false, token),
+                "Gruppensuche ohne Paging erfolgreich.",
+                cancellationToken))
             {
                 return BuildResponse(false, options, server, searchBase, steps);
             }
 
-            if (!string.IsNullOrWhiteSpace(groupPattern))
+            if (options.UsePaging)
             {
-                if (!TryStep(
-                    "Gruppenmuster ohne Paging",
+                await TryStepAsync(
+                    "Gruppenmuster mit Paging",
                     steps,
-                    () => ProbeGroupPattern(activeConnection, searchBase, groupPattern, usePaging: false),
-                    "Gruppensuche ohne Paging erfolgreich."))
-                {
-                    return BuildResponse(false, options, server, searchBase, steps);
-                }
-
-                if (options.UsePaging)
-                {
-                    TryStep(
-                        "Gruppenmuster mit Paging",
-                        steps,
-                        () => ProbeGroupPattern(activeConnection, searchBase, groupPattern, usePaging: true),
-                        "Gruppensuche mit Paging erfolgreich.");
-                }
-                else
-                {
-                    steps.Add(new LdapTestStep(
-                        "Gruppenmuster mit Paging",
-                        true,
-                        "Uebersprungen.",
-                        "Paging ist deaktiviert. Die App nutzt Gruppensuche ohne PageResult-Control."));
-                }
+                    token => ProbeGroupPatternAsync(activeConnection, searchBase, groupPattern, usePaging: true, token),
+                    "Gruppensuche mit Paging erfolgreich.",
+                    cancellationToken);
             }
             else
             {
-                steps.Add(new LdapTestStep("Gruppenmuster", true, "Uebersprungen.", "Trage ein Gruppenmuster ein, um auch die Gruppensuche zu testen."));
+                steps.Add(new LdapTestStep(
+                    "Gruppenmuster mit Paging",
+                    true,
+                    "Uebersprungen.",
+                    "Paging ist deaktiviert. Die App nutzt Gruppensuche ohne PageResult-Control."));
             }
+        }
+        else
+        {
+            steps.Add(new LdapTestStep("Gruppenmuster", true, "Uebersprungen.", "Trage ein Gruppenmuster ein, um auch die Gruppensuche zu testen."));
         }
 
         return BuildResponse(steps.All(step => step.Success), options, server, searchBase, steps);
     }
 
-    private LdapConnection CreateConnection(string server, LdapOptions options)
+    private static ManagedLdapClient CreateConnection(LdapEndpoint endpoint, LdapOptions options)
     {
-        NativeLdapTlsOptions.Apply(options.UseSsl, options.UseStartTls, options.VerifyCertificate);
-
-        var identifier = new LdapDirectoryIdentifier(server, options.Port, fullyQualifiedDnsHostName: false, connectionless: false);
-        var connection = new LdapConnection(identifier)
-        {
-            AuthType = string.IsNullOrWhiteSpace(options.BindDn) ? AuthType.Anonymous : AuthType.Basic,
-            Credential = CreateCredential(options),
-            Timeout = TimeSpan.FromSeconds(20)
-        };
-
-        connection.SessionOptions.ProtocolVersion = 3;
-        ConfigureCertificateValidation(connection, options);
-        connection.SessionOptions.SecureSocketLayer = options.UseSsl;
-        connection.SessionOptions.ReferralChasing = ReferralChasingOptions.None;
-        return connection;
+        return new ManagedLdapClient(endpoint, options.VerifyCertificate, TimeSpan.FromSeconds(20));
     }
 
-    private static void ConfigureCertificateValidation(LdapConnection connection, LdapOptions options)
+    private static async Task<string> BindConnectionAsync(
+        ManagedLdapClient connection,
+        LdapOptions options,
+        CancellationToken cancellationToken)
     {
-        if (!options.VerifyCertificate)
-        {
-            connection.SessionOptions.VerifyServerCertificate = (_, _) => true;
-        }
-    }
-
-    private void StartTransportLayerSecurity(LdapConnection connection)
-    {
-        connection.SessionOptions.StartTransportLayerSecurity(new DirectoryControlCollection());
-    }
-
-    private string BindConnection(LdapConnection connection, LdapOptions options)
-    {
-        var credential = CreateCredential(options);
-        if (credential is null)
-        {
-            connection.Bind();
-            return "Anonymer LDAP-Bind wurde ausgefuehrt.";
-        }
-
-        connection.Bind(credential);
+        await connection.BindAsync(options.BindDn, options.BindPassword, cancellationToken);
         return $"Expliziter LDAP-Bind mit {BindDnLabel(options)} wurde ausgefuehrt.";
-    }
-
-    private NetworkCredential? CreateCredential(LdapOptions options)
-    {
-        return string.IsNullOrWhiteSpace(options.BindDn)
-            ? null
-            : new NetworkCredential(options.BindDn, options.BindPassword);
     }
 
     private static string ResolveServerAddresses(string server)
@@ -326,37 +303,38 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
         return string.Join(" | ", parts);
     }
 
-    private static void ProbeSearchBase(LdapConnection connection, string searchBase)
+    private static async Task<string> ProbeSearchBaseAsync(
+        ManagedLdapClient connection,
+        string searchBase,
+        CancellationToken cancellationToken)
     {
-        var request = new SearchRequest(searchBase, "(objectClass=*)", SearchScope.Base, "distinguishedName", "name");
-        request.TimeLimit = TimeSpan.FromSeconds(15);
-        connection.SendRequest(request);
+        await connection.SearchAsync(
+            searchBase,
+            LdapConnection.ScopeBase,
+            "(objectClass=*)",
+            ["distinguishedName", "name"],
+            usePaging: false,
+            pageSize: 1,
+            cancellationToken);
+        return "Basisabfrage wurde auf der gebundenen Verbindung ausgefuehrt.";
     }
 
-    private static string ProbeGroupPattern(LdapConnection connection, string searchBase, string groupPattern, bool usePaging)
+    private static async Task<string> ProbeGroupPatternAsync(
+        ManagedLdapClient connection,
+        string searchBase,
+        string groupPattern,
+        bool usePaging,
+        CancellationToken cancellationToken)
     {
-        var request = new SearchRequest(
+        var entries = await connection.SearchAsync(
             searchBase,
+            LdapConnection.ScopeSub,
             $"(&(objectClass=group)(cn={EscapeLdapFilterValue(groupPattern)}))",
-            SearchScope.Subtree,
-            "distinguishedName",
-            "name");
-        request.TimeLimit = TimeSpan.FromSeconds(20);
-        if (usePaging)
-        {
-            request.Controls.Add(new PageResultRequestControl(10));
-        }
-
-        var response = (SearchResponse)connection.SendRequest(request);
-        if (!usePaging)
-        {
-            return $"{response.Entries.Count} Gruppe(n) in der Testabfrage gefunden.";
-        }
-
-        var hasMore = response.Controls.OfType<PageResultResponseControl>().Any(control => control.Cookie.Length > 0);
-        return hasMore
-            ? $"Mindestens {response.Entries.Count} Gruppe(n) in der Testabfrage gefunden."
-            : $"{response.Entries.Count} Gruppe(n) in der Testabfrage gefunden.";
+            ["distinguishedName", "cn", "name"],
+            usePaging,
+            pageSize: 10,
+            cancellationToken);
+        return $"{entries.Count} Gruppe(n) in der Testabfrage gefunden.";
     }
 
     private static bool TryStep(string name, List<LdapTestStep> steps, Action action, string successMessage)
@@ -436,7 +414,7 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
         return options.UseStartTls ? "LDAP+StartTLS" : "LDAP";
     }
 
-    private string BindDnLabel(LdapOptions options)
+    private static string BindDnLabel(LdapOptions options)
     {
         return string.IsNullOrWhiteSpace(options.BindDn) ? "(leer/anonym)" : options.BindDn;
     }

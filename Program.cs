@@ -95,7 +95,7 @@ app.MapPost("/api/search", async (
     {
         return Results.Ok(await lookup.SearchAsync(request, cancellationToken));
     }
-    catch (Exception ex) when (ex is InvalidOperationException or System.DirectoryServices.Protocols.DirectoryException)
+    catch (Exception ex) when (ex is InvalidOperationException or Novell.Directory.Ldap.LdapException)
     {
         return Results.BadRequest(new { error = ex is InvalidOperationException ? ex.Message : LdapExceptionFormatter.FriendlyMessage(ex) });
     }

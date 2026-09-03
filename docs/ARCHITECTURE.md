@@ -24,14 +24,14 @@ Active Directory via LDAPS or LDAP+StartTLS
 - `Services/LdapAdGroupLookupService.cs`: LDAP-Suche, TLS/LDAPS-Verbindungsaufbau inklusive optionaler Zertifikatspruefung, Gruppenauflistung, rekursive Member-Aufloesung und User-Attribut-Mapping.
 - `Services/LdapDiagnosticService.cs`: Schrittweiser LDAP-Test fuer DNS, TCP, TLS, Bind, SearchBase und Gruppenmuster.
 - `Services/LdapEndpointResolver.cs`: Normalisiert Host-Eingaben sowie `ldap://`-/`ldaps://`-URLs in Server, Port und TLS-Modus.
-- `Services/NativeLdapTlsOptions.cs`: Uebergibt Zertifikatspruefung und CA-Trust an die native OpenLDAP-Bibliothek.
+- `Services/ManagedLdapClient.cs`: Kapselt den plattformunabhaengigen LDAP-Client, TLS, Bind und Paging fuer Linux/Docker.
 - `Services/LdapSettingsStore.cs`: Laufzeitkonfiguration aus Environment-Defaults plus gespeicherten Dialogwerten.
 - `Services/ResultComparisonService.cs`: Vergleich zweier Benutzer innerhalb des geladenen Ergebnisses.
-- `docker-entrypoint.sh`: Importiert optional die interne CA und erzeugt die OpenLDAP-TLS-Konfiguration vor dem App-Start.
+- `docker-entrypoint.sh`: Importiert optional die interne CA vor dem App-Start in den System-Truststore.
 
 ## LDAP-Ablauf
 
-1. Gruppen werden per LDAP-Filter `(&(objectClass=group)(name=<pattern>))` unterhalb der `SearchBase` gesucht.
+1. Gruppen werden per LDAP-Filter `(&(objectClass=group)(cn=<pattern>))` unterhalb der `SearchBase` gesucht.
 2. Jede Gruppe wird rekursiv ueber das `member`-Attribut aufgeloest.
 3. Verschachtelte Gruppen werden mit `visitedGroups` gegen Zyklen geschuetzt.
 4. Benutzerattribute werden per Base-Search gelesen.
@@ -44,4 +44,4 @@ Die Verbindungsreihenfolge entspricht dem bewaehrten Ticketsystem-Muster: bei St
 
 Der Container lauscht intern auf Port `8080`. Portainer mappt standardmaessig Host-Port `3003`.
 LDAP-Dialogwerte werden unter `/app/data/ad-settings.json` gespeichert; der Stack bindet dafuer ein Docker-Volume ein.
-Eine per `AD_CA_CERT_PATH` gemountete CA wird beim Start in den System-Truststore importiert. `TLS_CACERT` verweist auf diesen Truststore; `TLS_REQCERT` folgt der wirksamen Zertifikatspruefung.
+Eine per `AD_CA_CERT_PATH` gemountete CA wird beim Start in den System-Truststore importiert. Der verwaltete TLS-Client nutzt diesen Truststore; bei deaktivierter Zertifikatspruefung greift sein eigener Validierungs-Callback.

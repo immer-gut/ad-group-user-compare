@@ -1,5 +1,5 @@
-using System.DirectoryServices.Protocols;
 using System.Security.Authentication;
+using Novell.Directory.Ldap;
 
 namespace AdGroupUserCompare.Services;
 
@@ -14,16 +14,16 @@ internal static class LdapExceptionFormatter
 
         return ex switch
         {
-            LdapException ldapException => ldapException.ErrorCode switch
+            LdapException ldapException => ldapException.ResultCode switch
             {
-                49 => "Bind fehlgeschlagen: Benutzername oder Passwort wird abgelehnt.",
-                81 => "Server nicht erreichbar, Port/SSL passt nicht oder das Zertifikat wird abgelehnt.",
-                91 => "LDAP-Verbindung konnte nicht hergestellt werden.",
-                _ => $"LDAP-Fehler {ldapException.ErrorCode}: {ldapException.Message}"
+                LdapException.InvalidCredentials => "Bind fehlgeschlagen: Benutzername oder Passwort wird abgelehnt.",
+                LdapException.ServerDown => "Server nicht erreichbar, Port/SSL passt nicht oder das Zertifikat wird abgelehnt.",
+                LdapException.ConnectError => "LDAP-Verbindung konnte nicht hergestellt werden.",
+                LdapException.SslHandshakeFailed => "TLS-Handshake fehlgeschlagen. Pruefe Zertifikat, TLS-Version und Servernamen.",
+                LdapException.TlsNotSupported => "StartTLS wird vom LDAP-Server auf diesem Port nicht angeboten.",
+                _ => $"LDAP-Fehler {ldapException.ResultCode}: {ldapException.Message}"
             },
             AuthenticationException => "TLS-Handshake fehlgeschlagen. Pruefe, ob auf diesem Port wirklich LDAPS laeuft und ob Zertifikat/TLS-Version passen.",
-            TlsOperationException => "StartTLS fehlgeschlagen. Pruefe Port 389, Zertifikat und ob der Domain Controller StartTLS anbietet.",
-            DirectoryOperationException directoryOperationException => $"LDAP-Operation fehlgeschlagen: {directoryOperationException.Message}",
             _ => ex.Message
         };
     }
@@ -38,10 +38,15 @@ internal static class LdapExceptionFormatter
 
         if (ex is LdapException ldapException)
         {
-            parts.Add($"ErrorCode={ldapException.ErrorCode}");
-            if (!string.IsNullOrWhiteSpace(ldapException.ServerErrorMessage))
+            parts.Add($"ResultCode={ldapException.ResultCode}");
+            if (!string.IsNullOrWhiteSpace(ldapException.LdapErrorMessage))
             {
-                parts.Add(ldapException.ServerErrorMessage);
+                parts.Add(ldapException.LdapErrorMessage);
+            }
+
+            if (!string.IsNullOrWhiteSpace(ldapException.MatchedDn))
+            {
+                parts.Add($"MatchedDN={ldapException.MatchedDn}");
             }
         }
 
@@ -68,7 +73,8 @@ internal static class LdapExceptionFormatter
             }
 
             if (current is LdapException ldapException &&
-                ldapException.ServerErrorMessage?.Contains("strong authentication is required", StringComparison.OrdinalIgnoreCase) == true)
+                (ldapException.ResultCode == LdapException.StrongAuthRequired ||
+                 ldapException.LdapErrorMessage?.Contains("strong authentication is required", StringComparison.OrdinalIgnoreCase) == true))
             {
                 return true;
             }
