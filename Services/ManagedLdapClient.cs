@@ -1,4 +1,5 @@
 using Novell.Directory.Ldap;
+using Novell.Directory.Ldap.Controls;
 
 namespace AdGroupUserCompare.Services;
 
@@ -67,6 +68,26 @@ internal sealed class ManagedLdapClient : IDisposable
         int pageSize,
         CancellationToken cancellationToken)
     {
+        var result = await SearchWithMetadataAsync(
+            searchBase,
+            scope,
+            filter,
+            attributes,
+            usePaging,
+            pageSize,
+            cancellationToken);
+        return result.Entries;
+    }
+
+    public async Task<ManagedLdapSearchResult> SearchWithMetadataAsync(
+        string searchBase,
+        int scope,
+        string filter,
+        string[] attributes,
+        bool usePaging,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
         var constraints = new LdapSearchConstraints
         {
             ReferralFollowing = false,
@@ -75,9 +96,12 @@ internal sealed class ManagedLdapClient : IDisposable
 
         if (usePaging)
         {
-            var options = new SearchOptions(searchBase, scope, filter, attributes, false, constraints);
-            return await _connection.SearchUsingSimplePagingAsync(
-                options,
+            return await SearchUsingPagingAsync(
+                searchBase,
+                scope,
+                filter,
+                attributes,
+                constraints,
                 Math.Max(1, pageSize),
                 cancellationToken);
         }
@@ -91,12 +115,75 @@ internal sealed class ManagedLdapClient : IDisposable
             constraints,
             cancellationToken);
         var entries = new List<LdapEntry>();
-        while (await search.HasMoreAsync(cancellationToken))
+        var skippedReferralCount = await ReadEntriesAsync(search, entries, cancellationToken);
+        return new ManagedLdapSearchResult(entries, skippedReferralCount);
+    }
+
+    private async Task<ManagedLdapSearchResult> SearchUsingPagingAsync(
+        string searchBase,
+        int scope,
+        string filter,
+        string[] attributes,
+        LdapSearchConstraints constraints,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        var entries = new List<LdapEntry>();
+        var skippedReferralCount = 0;
+        var cookie = SimplePagedResultsControl.GetEmptyCookie;
+
+        while (true)
         {
-            entries.Add(await search.NextAsync(cancellationToken));
+            constraints.BatchSize = 0;
+            constraints.SetControls(new SimplePagedResultsControl(pageSize, cookie));
+            var search = await _connection.SearchAsync(
+                searchBase,
+                scope,
+                filter,
+                attributes,
+                false,
+                constraints,
+                cancellationToken);
+
+            skippedReferralCount += await ReadEntriesAsync(search, entries, cancellationToken);
+            var pageControl = search.ResponseControls?
+                .OfType<SimplePagedResultsControl>()
+                .SingleOrDefault();
+            if (pageControl is null)
+            {
+                throw new LdapException("LDAP-Server hat keine Paging-Antwort geliefert.");
+            }
+
+            if (pageControl.IsEmptyCookie())
+            {
+                break;
+            }
+
+            cookie = pageControl.Cookie;
         }
 
-        return entries;
+        return new ManagedLdapSearchResult(entries, skippedReferralCount);
+    }
+
+    private static async Task<int> ReadEntriesAsync(
+        ILdapSearchResults search,
+        List<LdapEntry> entries,
+        CancellationToken cancellationToken)
+    {
+        var skippedReferralCount = 0;
+        while (await search.HasMoreAsync(cancellationToken))
+        {
+            try
+            {
+                entries.Add(await search.NextAsync(cancellationToken));
+            }
+            catch (LdapReferralException)
+            {
+                skippedReferralCount++;
+            }
+        }
+
+        return skippedReferralCount;
     }
 
     public void Dispose()
@@ -104,3 +191,5 @@ internal sealed class ManagedLdapClient : IDisposable
         _connection.Dispose();
     }
 }
+
+internal sealed record ManagedLdapSearchResult(List<LdapEntry> Entries, int SkippedReferralCount);

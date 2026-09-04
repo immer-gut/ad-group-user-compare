@@ -326,7 +326,7 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
         bool usePaging,
         CancellationToken cancellationToken)
     {
-        var entries = await connection.SearchAsync(
+        var result = await connection.SearchWithMetadataAsync(
             searchBase,
             LdapConnection.ScopeSub,
             $"(&(objectClass=group)(cn={EscapeLdapFilterValue(groupPattern)}))",
@@ -334,7 +334,10 @@ public sealed class LdapDiagnosticService(LdapSettingsStore settings) : ILdapDia
             usePaging,
             pageSize: 10,
             cancellationToken);
-        return $"{entries.Count} Gruppe(n) in der Testabfrage gefunden.";
+        var referralDetail = result.SkippedReferralCount == 0
+            ? "Keine LDAP-Referrals erhalten."
+            : $"{result.SkippedReferralCount} LDAP-Referral(s) wie konfiguriert uebersprungen.";
+        return $"{result.Entries.Count} Gruppe(n) in der Testabfrage gefunden. {referralDetail}";
     }
 
     private static bool TryStep(string name, List<LdapTestStep> steps, Action action, string successMessage)

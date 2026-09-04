@@ -14,6 +14,7 @@ AD Group User Compare ist eine Docker-faehige Web-App fuer Ubuntu/Portainer. Sie
 - **Zertifikatspruefung:** LDAPS/StartTLS prueft Server-Zertifikate standardmaessig. Fuer Diagnosefaelle kann die Pruefung im Testdialog oder per `AD_VERIFY_CERTIFICATE=false` deaktiviert werden.
 - **Interne CA:** Optional kann `AD_CA_CERT_PATH` auf eine gemountete CA-Datei zeigen; der Container importiert sie beim Start in den Linux-Truststore.
 - **Ticketsystem-Muster:** `ldap://`- und `ldaps://`-Server-URLs werden wie in der funktionierenden `ldap3`-Anbindung auf Host, Port und TLS-Modus normalisiert; StartTLS erfolgt nach dem Connect und vor dem Bind.
+- **Referrals bleiben aus:** AD-Suchverweise werden nicht automatisch verfolgt, damit Bind-Zugangsdaten nicht ungefragt an weitere LDAP-Server gehen. Lokale Suchtreffer bleiben erhalten und uebersprungene Referrals werden im Test gezaehlt.
 - **Versionsanzeige:** Die Website liest die Assembly-Version ueber `GET /api/version`; die Versionsquelle ist `AdGroupUserCompare.csproj`.
 - **Keine Secrets im Repo:** LDAP-Passwoerter gehoeren in Portainer-Environment-Variablen oder lokale `.env`, nicht in Git. Interne Zertifikats- und Schluesseldateien werden ebenfalls ignoriert und nur zur Laufzeit gemountet.
 
@@ -30,6 +31,7 @@ AD Group User Compare ist eine Docker-faehige Web-App fuer Ubuntu/Portainer. Sie
 - Der Vergleich betrachtet nur die aktuell geladene Ergebnismenge.
 - Reale AD-Performance haengt von Gruppenverschachtelung, LDAP-Indexen, Netzwerk und Berechtigungen ab.
 - Gespeicherte LDAP-Passwoerter liegen im Docker-Volume als Laufzeitkonfiguration. Das Volume muss entsprechend geschuetzt werden.
+- Gruppen oder Benutzer, die nur ueber einen Referral in einer anderen AD-Domaene erreichbar sind, werden nicht automatisch geladen; dafuer muessen LDAP-Server und SearchBase passend gewaehlt werden.
 
 ## StartTLS-Verifikation
 

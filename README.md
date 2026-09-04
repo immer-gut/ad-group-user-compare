@@ -124,6 +124,8 @@ Optional fuer eine interne AD-CA:
 - Falls die interne CA im Container noch nicht vertraut ist, kann die Zertifikatspruefung im Testdialog oder mit `AD_VERIFY_CERTIFICATE=false` deaktiviert werden. Der verwaltete TLS-Client akzeptiert das Serverzertifikat dann wie das Ticketsystem mit deaktivierter Pruefung; das sollte nur zur Diagnose oder in kontrollierten internen Netzen genutzt werden.
 - StartTLS folgt exakt der Reihenfolge des Ticketsystems: Verbindung auf Port 389 oeffnen, StartTLS aushandeln und erst danach mit dem Lesebenutzer binden.
 - Der Button `LDAP testen` prueft die Verbindung schrittweise inklusive DNS-Aufloesung, TCP-Port, LDAPS-TLS-Handshake mit Zertifikatsdetails, Bind, SearchBase und Gruppenmuster.
+- Active Directory kann bei einer Unterbaum-Suche zusaetzliche LDAP-Referrals liefern. Da Referral-Following deaktiviert ist, ueberspringt die App diese Verweise und verarbeitet lokale Treffer weiter; der LDAP-Test zeigt die Anzahl uebersprungener Referrals an.
+- Liegen die gesuchten Gruppen ausschliesslich in einer anderen AD-Domaene, muessen LDAP-Server und SearchBase auf den zustaendigen Namensbereich zeigen. Die App sendet Bind-Zugangsdaten nicht automatisch an Referral-Ziele.
 - Wenn `Gruppenmuster ohne Paging` funktioniert, aber `Gruppenmuster mit Paging` fehlschlaegt, kann `AD_USE_PAGING=false` als Workaround gesetzt werden.
 - Der Vergleich betrachtet nur das aktuell geladene Ergebnis, nicht alle Gruppen eines Benutzers im gesamten AD.
 

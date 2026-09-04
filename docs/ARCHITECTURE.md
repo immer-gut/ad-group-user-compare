@@ -31,7 +31,7 @@ Active Directory via LDAPS or LDAP+StartTLS
 
 ## LDAP-Ablauf
 
-1. Gruppen werden per LDAP-Filter `(&(objectClass=group)(cn=<pattern>))` unterhalb der `SearchBase` gesucht.
+1. Gruppen werden per LDAP-Filter `(&(objectClass=group)(cn=<pattern>))` unterhalb der `SearchBase` gesucht. LDAP-Referrals werden bei deaktiviertem Referral-Following uebersprungen, ohne bereits empfangene lokale Treffer zu verwerfen.
 2. Jede Gruppe wird rekursiv ueber das `member`-Attribut aufgeloest.
 3. Verschachtelte Gruppen werden mit `visitedGroups` gegen Zyklen geschuetzt.
 4. Benutzerattribute werden per Base-Search gelesen.
@@ -39,6 +39,7 @@ Active Directory via LDAPS or LDAP+StartTLS
 
 Der Bind nutzt fuer gehaertete Domain Controller standardmaessig LDAPS. Alternativ kann StartTLS auf Port 389 aktiviert werden. Server-Zertifikate werden standardmaessig geprueft; fuer Diagnose oder interne Testnetze kann die Pruefung deaktiviert werden.
 Die Verbindungsreihenfolge entspricht dem bewaehrten Ticketsystem-Muster: bei StartTLS erst Verbindung oeffnen und TLS starten, danach explizit binden; bei LDAPS wird direkt die TLS-Verbindung aufgebaut und gebunden.
+Paging wird innerhalb des Managed-LDAP-Clients ausgefuehrt. Jede Seite wird auch bei Search-Result-References vollstaendig gelesen; uebersprungene Referrals werden als Metadaten an den Diagnosetest gemeldet.
 
 ## Deployment
 
